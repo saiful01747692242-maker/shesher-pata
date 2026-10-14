@@ -47,19 +47,27 @@ export const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenTrackOrder }) 
 
           <div
             onClick={() => onNavigate && onNavigate('about')}
-            className="hidden sm:flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+            className="hidden sm:flex items-center gap-1 hover:text-[#E5A913] transition-colors cursor-pointer"
             title="আমাদের সম্পর্কে"
           >
             <span>আমাদের সম্পর্কে</span>
           </div>
 
           <div
-            onClick={() => onNavigate && onNavigate('contact')}
-            className="hidden sm:flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-            title="সাহায্য ও যোগাযোগ"
+            onClick={() => onNavigate && onNavigate('help')}
+            className="hidden sm:flex items-center gap-1 hover:text-[#E5A913] transition-colors cursor-pointer"
+            title="সহায়তা ও এফএকিউ"
           >
             <HelpCircle className="w-3.5 h-3.5 text-[#E5A913]" />
-            <span>সাহায্য ও যোগাযোগ</span>
+            <span>সাহায্য</span>
+          </div>
+
+          <div
+            onClick={() => onNavigate && onNavigate('contact')}
+            className="hidden sm:flex items-center gap-1.5 hover:text-[#E5A913] transition-colors cursor-pointer"
+            title="যোগাযোগ ও হেল্পলাইন"
+          >
+            <span>যোগাযোগ</span>
           </div>
 
           <div className="hidden lg:flex items-center gap-1.5 hover:text-white transition-colors">

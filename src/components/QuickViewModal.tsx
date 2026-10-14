@@ -14,12 +14,14 @@ interface QuickViewModalProps {
   book: Book;
   onClose: () => void;
   onOpenFullDetails: (book: Book) => void;
+  onBuyNow?: (book: Book, quantity: number) => void;
 }
 
 export const QuickViewModal: React.FC<QuickViewModalProps> = ({
   book,
   onClose,
   onOpenFullDetails,
+  onBuyNow,
 }) => {
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
@@ -115,7 +117,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <button
                 type="button"
                 disabled={book.stock <= 0}
@@ -124,7 +126,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
                     addToCart(book, 1);
                   }
                 }}
-                className={`flex-1 py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
                   book.stock <= 0
                     ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed border border-zinc-300'
                     : 'bg-amber-500 hover:bg-amber-600 text-zinc-950 cursor-pointer shadow-xs active:scale-95'
@@ -134,10 +136,31 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
                 <span>{book.stock <= 0 ? 'স্টক শেষ' : 'কার্টে যোগ করুন'}</span>
               </button>
 
+              {onBuyNow && (
+                <button
+                  type="button"
+                  disabled={book.stock <= 0}
+                  onClick={() => {
+                    if (book.stock > 0) {
+                      onBuyNow(book, 1);
+                      onClose();
+                    }
+                  }}
+                  className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
+                    book.stock <= 0
+                      ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed border border-zinc-200'
+                      : 'bg-[#18181B] hover:bg-zinc-800 text-white cursor-pointer active:scale-95'
+                  }`}
+                >
+                  <span>{book.stock <= 0 ? 'উপলব্ধ নেই' : 'এখনই কিনুন'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => toggleWishlist(book)}
-                className={`p-2.5 rounded-xl border cursor-pointer transition-colors ${
+                className={`p-2.5 rounded-xl border cursor-pointer transition-colors shrink-0 flex items-center justify-center ${
                   isWished ? 'bg-rose-50 border-rose-200 text-rose-500' : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50'
                 }`}
                 title="উইশলিস্ট"

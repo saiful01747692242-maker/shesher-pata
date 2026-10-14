@@ -2,6 +2,7 @@ import { Book } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BOOKS as INITIAL_BOOKS } from '../data/books';
 import { normalizeBengali } from '../utils/filterUtils';
+import { generateBookSlug } from '../utils/bookUrl';
 
 export const BOOKS_STORAGE_KEY = 'shesher_pata_books_v1';
 export const BOOKS_CHANGED_EVENT = 'shesher_pata_books_changed';
@@ -68,6 +69,7 @@ export function rowToBook(row: any): Book {
 
   return {
     id: String(row.id),
+    slug: row.slug || undefined,
     title,
     title_bn: banglaName,
     bangla_name: banglaName,
@@ -240,6 +242,12 @@ export function bookToRow(book: Partial<Book> | Record<string, any>): Record<str
     updated_at: new Date().toISOString(),
   };
 
+  if (book.slug) {
+    row.slug = String(book.slug).trim();
+  } else if (title) {
+    row.slug = generateBookSlug(title, String(book.id || row.id || Date.now()), englishName);
+  }
+
   if (book.id) {
     row.id = String(book.id).trim();
   }
@@ -258,6 +266,8 @@ export function bookToRowPartial(book: Partial<Book>): Record<string, any> {
   const row: Record<string, any> = {
     updated_at: new Date().toISOString(),
   };
+
+  if (book.slug !== undefined) row.slug = book.slug;
 
   if (book.title !== undefined || book.bangla_name !== undefined || book.title_bn !== undefined) {
     const titleVal = normalizeBengali((book.bangla_name || book.title_bn || book.title || ''));
@@ -402,15 +412,15 @@ export const bookService = {
   /**
    * Fetch a single book by ID from Supabase.
    */
-  async getBookById(id: string): Promise<Book | null> {
-    if (!id) return null;
+  async getBookById(idOrSlug: string): Promise<Book | null> {
+    if (!idOrSlug) return null;
 
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data, error } = await supabase
           .from('books')
           .select('*')
-          .eq('id', id)
+          .or(`id.eq.${idOrSlug},slug.eq.${idOrSlug}`)
           .maybeSingle();
 
         if (!error) {
@@ -419,13 +429,13 @@ export const bookService = {
           return null;
         }
       } catch (err) {
-        console.warn(`[bookService] Exception fetching book ${id}:`, err);
+        console.warn(`[bookService] Exception fetching book ${idOrSlug}:`, err);
       }
     }
 
     // Fallback: search local cache if offline
     const cached = this.getCachedBooks();
-    return cached.find((b) => b.id === id) || null;
+    return cached.find((b) => b.id === idOrSlug || b.slug === idOrSlug) || null;
   },
 
   /**

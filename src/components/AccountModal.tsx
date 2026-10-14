@@ -25,7 +25,7 @@ interface AccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenOrders: () => void;
-  onOpenWishlist: () => void;
+  onOpenWishlist?: () => void;
 }
 
 export const AccountModal: React.FC<AccountModalProps> = ({
@@ -154,7 +154,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 type="button"
                 onClick={() => {
                   onClose();
-                  onOpenWishlist();
+                  onOpenWishlist?.();
                 }}
                 className="w-full p-3 rounded-xl border border-zinc-200 hover:bg-amber-50/50 flex items-center justify-between transition-colors cursor-pointer"
               >

@@ -3,7 +3,7 @@
 import React, { useRef } from 'react';
 import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
-import { matchesCategory, normalizeBengali } from '../utils/filterUtils';
+import { matchesCategory, normalizeBengali, isAllCategory } from '../utils/filterUtils';
 
 interface CategoryCarouselProps {
   onSelectCategory: (categoryId: string) => void;
@@ -13,15 +13,15 @@ interface CategoryCarouselProps {
 const QUICK_CATEGORIES = [
   { id: 'novel', name: 'উপন্যাস', count: '৪২০+', image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=160&q=80' },
   { id: 'thriller', name: 'থ্রিলার ও রহস্য', count: '৩১০+', image: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=160&q=80' },
-  { id: 'islamic', name: 'ইসলামিক বই', count: '৩৮০+', image: 'https://images.unsplash.com/photo-1584286595398-a59f21d313f5?auto=format&fit=crop&w=160&q=80' },
+  { id: 'islamic', name: 'ইসলামিক সাহিত্য', count: '৩৮০+', image: 'https://images.unsplash.com/photo-1584286595398-a59f21d313f5?auto=format&fit=crop&w=160&q=80' },
   { id: 'children', name: 'শিশু-কিশোর', count: '২৯০+', image: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=160&q=80' },
-  { id: 'poetry', name: 'কবিতা ও সাহিত্য', count: '১৯৫+', image: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&w=160&q=80' },
+  { id: 'poetry', name: 'কবিতা', count: '১৯৫+', image: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&w=160&q=80' },
   { id: 'self-help', name: 'আত্মউন্নয়ন', count: '২১০+', image: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=160&q=80' },
   { id: 'history', name: 'ইতিহাস ও ঐতিহ্য', count: '২৪০+', image: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=160&q=80' },
   { id: 'scifi', name: 'সায়েন্স ফিকশন', count: '১৮০+', image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=160&q=80' },
   { id: 'english', name: 'ইংরেজি ও অনুবাদ', count: '৩৫০+', image: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=160&q=80' },
-  { id: 'academic', name: 'একাডেমিক বই', count: '৫২০+', image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=160&q=80' },
-  { id: 'package', name: 'প্যাকেজ অফার', count: '৮৫+', image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=160&q=80' },
+  { id: 'academic', name: 'একাডেমিক ও ক্যারিয়ার', count: '৫২০+', image: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=160&q=80' },
+  { id: 'package', name: 'স্পেশাল প্যাকেজ', count: '৮৫+', image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=160&q=80' },
 ];
 
 export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
@@ -32,14 +32,24 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Blend static carousel metadata with live categories from database
-  const displayCategories = QUICK_CATEGORIES.map((quickCat) => {
-    const liveCat = categories.find((c) => c.id === quickCat.id || c.name === quickCat.name);
-    return {
-      ...quickCat,
-      name: liveCat?.name || quickCat.name,
-      image: liveCat?.imageUrl || (liveCat as any)?.image || quickCat.image,
-    };
-  });
+  // If live categories exist, prefer live categories so any custom admin categories show up
+  const displayCategories = React.useMemo(() => {
+    if (categories && categories.length > 0) {
+      return categories.map((liveCat) => {
+        const quick = QUICK_CATEGORIES.find(
+          (q) => q.id === liveCat.id || matchesCategory(liveCat.name, [], q.id, categories)
+        );
+        return {
+          id: liveCat.id,
+          name: liveCat.name,
+          count: quick?.count || '৫০+',
+          image: liveCat.imageUrl || (liveCat as any).image || quick?.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=160&q=80',
+        };
+      });
+    }
+
+    return QUICK_CATEGORIES;
+  }, [categories]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -70,7 +80,7 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
           <div
             onClick={() => onSelectCategory('all')}
             className={`group shrink-0 w-24 sm:w-28 bg-[#211E15] rounded-xl p-2 sm:p-2.5 border shadow-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center text-center select-none min-h-[88px] sm:min-h-[96px] ${
-              activeCategoryId === 'all' || !activeCategoryId
+              isAllCategory(activeCategoryId)
                 ? 'border-[#E5A913] ring-1 ring-[#E5A913]'
                 : 'border-[#3A3423] hover:border-[#E5A913]'
             }`}
@@ -85,7 +95,9 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
           </div>
 
           {displayCategories.map((cat) => {
-            const isSelected = matchesCategory(cat.name, [], activeCategoryId, categories) || cat.id === activeCategoryId;
+            const isSelected =
+              !isAllCategory(activeCategoryId) &&
+              (matchesCategory(cat.name, [], activeCategoryId, categories) || cat.id === activeCategoryId);
 
             return (
               <div

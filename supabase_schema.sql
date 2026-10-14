@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS public.books (
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS title_bn TEXT;
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS bangla_name TEXT;
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS english_name TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS slug TEXT;
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS author TEXT;
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS publisher TEXT DEFAULT 'বাতিঘর';
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'উপন্যাস';
@@ -97,6 +98,7 @@ ALTER TABLE public.books ADD COLUMN IF NOT EXISTS section_ids TEXT[] DEFAULT ARR
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
 
 -- Performance Indexes for books catalog filtering and sorting
+CREATE INDEX IF NOT EXISTS idx_books_slug ON public.books(slug);
 CREATE INDEX IF NOT EXISTS idx_books_category ON public.books(category);
 CREATE INDEX IF NOT EXISTS idx_books_status ON public.books(status);
 CREATE INDEX IF NOT EXISTS idx_books_is_active ON public.books(is_active);
@@ -594,4 +596,277 @@ VALUES
     ('author-sunil', 'সুনীল গঙ্গোপাধ্যায়', '১৯৩৪ – ২০১২', 'কবি, ঔপন্যাসিক ও ছোটগল্পকার', 'নীললোহিত ছদ্মনামে খ্যাত। সেই সময়, প্রথম আলো, পূর্ব-পশ্চিম এবং কাকাবাবু সিরিজের অমর স্রষ্টা।', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80', 34),
     ('author-sharat', 'শরৎচন্দ্র চট্টোপাধ্যায়', '১৮৭৬ – ১৯৩৮', 'অপরাজেয় কথাশিল্পী', 'বাংলা সাহিত্যের শ্রেষ্ঠ জীবনশিল্পী। চরিত্রহীন, দেবদাস, শ্রীকান্ত ও দেনা-পাওনা উপন্যাসের স্রষ্টা।', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80', 26)
 ON CONFLICT (id) DO NOTHING;
+
+-- ------------------------------------------------------------------------------
+-- 9. PUBLISHERS TABLE (প্রকাশনী)
+-- ------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.publishers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    location TEXT DEFAULT 'ঢাকা',
+    established TEXT DEFAULT '',
+    logo TEXT DEFAULT '',
+    book_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Ensure all columns exist safely
+ALTER TABLE public.publishers ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+ALTER TABLE public.publishers ADD COLUMN IF NOT EXISTS location TEXT DEFAULT 'ঢাকা';
+ALTER TABLE public.publishers ADD COLUMN IF NOT EXISTS established TEXT DEFAULT '';
+ALTER TABLE public.publishers ADD COLUMN IF NOT EXISTS logo TEXT DEFAULT '';
+ALTER TABLE public.publishers ADD COLUMN IF NOT EXISTS book_count INTEGER DEFAULT 0;
+ALTER TABLE public.publishers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now());
+
+CREATE INDEX IF NOT EXISTS idx_publishers_name ON public.publishers(name);
+
+ALTER TABLE public.publishers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow public read access to publishers" ON public.publishers;
+CREATE POLICY "Allow public read access to publishers"
+    ON public.publishers FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Allow service_role full access to publishers" ON public.publishers;
+CREATE POLICY "Allow service_role full access to publishers"
+    ON public.publishers FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Realtime publication for publishers
+ALTER TABLE public.publishers REPLICA IDENTITY FULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'publishers'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.publishers;
+  END IF;
+END $$;
+
+-- Automatic updated_at trigger for publishers
+DROP TRIGGER IF EXISTS trigger_publishers_updated_at ON public.publishers;
+CREATE TRIGGER trigger_publishers_updated_at
+    BEFORE UPDATE ON public.publishers
+    FOR EACH ROW
+    EXECUTE FUNCTION public.update_books_updated_at();
+
+-- ============================================================================
+-- 11. BANNERS TABLE & POLICIES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.banners (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL DEFAULT 'homepage_hero',
+    placement TEXT NOT NULL DEFAULT 'homepage_hero',
+    badge TEXT,
+    badge_color TEXT,
+    title TEXT,
+    subtitle TEXT,
+    description TEXT,
+    image_url TEXT NOT NULL,
+    mobile_image_url TEXT,
+    primary_button_text TEXT,
+    primary_button_url TEXT,
+    secondary_button_text TEXT,
+    secondary_button_url TEXT,
+    highlight_text TEXT,
+    theme TEXT,
+    theme_color TEXT,
+    background_pattern TEXT,
+    display_order INTEGER NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    starts_at TIMESTAMP WITH TIME ZONE,
+    ends_at TIMESTAMP WITH TIME ZONE,
+    target_url TEXT DEFAULT '',
+    open_in_new_tab BOOLEAN DEFAULT false,
+    alt_text TEXT DEFAULT '',
+    design_config JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.banners ADD COLUMN IF NOT EXISTS badge_color TEXT;
+ALTER TABLE public.banners ADD COLUMN IF NOT EXISTS highlight_text TEXT;
+ALTER TABLE public.banners ADD COLUMN IF NOT EXISTS theme TEXT;
+ALTER TABLE public.banners ADD COLUMN IF NOT EXISTS target_url TEXT DEFAULT '';
+ALTER TABLE public.banners ADD COLUMN IF NOT EXISTS open_in_new_tab BOOLEAN DEFAULT false;
+ALTER TABLE public.banners ADD COLUMN IF NOT EXISTS design_config JSONB DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS idx_banners_placement ON public.banners(placement);
+CREATE INDEX IF NOT EXISTS idx_banners_is_active ON public.banners(is_active);
+CREATE INDEX IF NOT EXISTS idx_banners_display_order ON public.banners(display_order);
+
+ALTER TABLE public.banners ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view active banners" ON public.banners;
+CREATE POLICY "Public can view active banners"
+    ON public.banners FOR SELECT
+    TO anon, authenticated
+    USING (
+        is_active = true 
+        AND (starts_at IS NULL OR starts_at <= timezone('utc'::text, now()))
+        AND (ends_at IS NULL OR ends_at >= timezone('utc'::text, now()))
+    );
+
+DROP POLICY IF EXISTS "Service role manage banners" ON public.banners;
+CREATE POLICY "Service role manage banners"
+    ON public.banners FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- ============================================================================
+-- 12. COUPONS TABLE & POLICIES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.coupons (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    discount_type TEXT NOT NULL DEFAULT 'percentage',
+    discount_value NUMERIC NOT NULL,
+    minimum_order_amount NUMERIC DEFAULT 0,
+    maximum_discount_amount NUMERIC,
+    usage_limit INTEGER,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    per_user_limit INTEGER DEFAULT 1,
+    starts_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    description TEXT,
+    applicable_to TEXT NOT NULL DEFAULT 'all',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_coupons_code ON public.coupons(code);
+CREATE INDEX IF NOT EXISTS idx_coupons_is_active ON public.coupons(is_active);
+CREATE INDEX IF NOT EXISTS idx_coupons_expires_at ON public.coupons(expires_at);
+
+ALTER TABLE public.coupons ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can view active coupons" ON public.coupons;
+CREATE POLICY "Public can view active coupons"
+    ON public.coupons FOR SELECT
+    TO anon, authenticated
+    USING (is_active = true);
+
+DROP POLICY IF EXISTS "Service role manage coupons" ON public.coupons;
+CREATE POLICY "Service role manage coupons"
+    ON public.coupons FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- ============================================================================
+-- 13. ORDERS TABLE & POLICIES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.orders (
+    id TEXT PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    customer_email TEXT,
+    user_id TEXT,
+    address TEXT NOT NULL,
+    district TEXT NOT NULL,
+    thana TEXT,
+    postal_code TEXT,
+    delivery_option TEXT NOT NULL DEFAULT 'inside_dhaka',
+    delivery_fee NUMERIC NOT NULL DEFAULT 60,
+    payment_method TEXT NOT NULL DEFAULT 'cod',
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    subtotal NUMERIC NOT NULL DEFAULT 0,
+    discount_amount NUMERIC NOT NULL DEFAULT 0,
+    coupon_code TEXT,
+    total NUMERIC NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    order_notes TEXT,
+    steadfast_consignment_id TEXT,
+    steadfast_tracking_code TEXT,
+    steadfast_status TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_phone ON public.orders(customer_phone);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_email ON public.orders(customer_email);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
+
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can insert orders" ON public.orders;
+CREATE POLICY "Public can insert orders"
+    ON public.orders FOR INSERT
+    TO anon, authenticated
+    WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Users can view own orders" ON public.orders;
+CREATE POLICY "Users can view own orders"
+    ON public.orders FOR SELECT
+    TO authenticated
+    USING (auth.uid()::text = user_id OR auth.jwt()->>'email' = customer_email);
+
+DROP POLICY IF EXISTS "Service role manage orders" ON public.orders;
+CREATE POLICY "Service role manage orders"
+    ON public.orders FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- ============================================================================
+-- 14. REVIEWS TABLE & POLICIES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.reviews (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    book_id TEXT NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+    user_id TEXT,
+    user_name TEXT NOT NULL,
+    user_email TEXT,
+    rating NUMERIC NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    review_text TEXT NOT NULL,
+    order_id TEXT,
+    is_verified_purchase BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT unique_user_book_review UNIQUE(book_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_book_id ON public.reviews(book_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_user_id ON public.reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON public.reviews(created_at DESC);
+
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public can read reviews" ON public.reviews;
+CREATE POLICY "Public can read reviews"
+    ON public.reviews FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+DROP POLICY IF EXISTS "Authenticated users can insert review" ON public.reviews;
+CREATE POLICY "Authenticated users can insert review"
+    ON public.reviews FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "Authenticated users can update own review" ON public.reviews;
+CREATE POLICY "Authenticated users can update own review"
+    ON public.reviews FOR UPDATE
+    TO authenticated
+    USING (auth.uid()::text = user_id)
+    WITH CHECK (auth.uid()::text = user_id);
+
+DROP POLICY IF EXISTS "Service role manage reviews" ON public.reviews;
+CREATE POLICY "Service role manage reviews"
+    ON public.reviews FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
 

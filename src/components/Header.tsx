@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Heart, ShoppingBag, User, Menu, X, Tag, HelpCircle, PackageCheck } from 'lucide-react';
+import { Heart, ShoppingBag, User, Menu, X, Tag, HelpCircle, PackageCheck, Phone, BookOpen } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { SearchBar } from './SearchBar';
 import { TopBar } from './TopBar';
@@ -52,7 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       {/* Top promotional & helpline bar */}
-      <TopBar />
+      <TopBar onNavigate={onNavigate} onOpenTrackOrder={onOpenTrackOrder} />
 
       {/* Main Sticky Header with smooth scroll behavior */}
       <header
@@ -297,13 +297,39 @@ export const Header: React.FC<HeaderProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        onNavigate('contact');
+                        onNavigate('about');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-zinc-700 hover:bg-zinc-100 rounded-lg"
+                    >
+                      <BookOpen className="w-4 h-4 text-zinc-500" />
+                      <span>আমাদের সম্পর্কে</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onNavigate('help');
                         setIsMobileMenuOpen(false);
                       }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 text-zinc-700 hover:bg-zinc-100 rounded-lg"
                     >
                       <HelpCircle className="w-4 h-4 text-zinc-500" />
-                      <span>সাহায্য ও যোগাযোগ</span>
+                      <span>সহায়তা ও এফএকিউ</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onNavigate('contact');
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-zinc-700 hover:bg-zinc-100 rounded-lg"
+                    >
+                      <Phone className="w-4 h-4 text-amber-600" />
+                      <span>যোগাযোগ ও হেল্পলাইন</span>
                     </button>
                   </li>
                 </ul>

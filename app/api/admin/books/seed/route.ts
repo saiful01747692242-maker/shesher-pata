@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       const batch = rows.slice(i, i + batchSize);
       const { error } = await supabase
         .from('books')
-        .upsert(batch, { onConflict: 'id' });
+        .upsert(batch, { onConflict: 'id', ignoreDuplicates: true });
 
       if (error) {
         console.error(`[Seed API] Error upserting batch ${i}:`, error);

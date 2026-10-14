@@ -195,6 +195,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
                 <li>
                   <button
                     type="button"
+                    onClick={() => onNavigate('help')}
+                    className="hover:text-[#E5A913] transition-colors cursor-pointer"
+                  >
+                    সহায়তা ও এফএকিউ
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
                     onClick={() => onNavigate('contact')}
                     className="hover:text-[#E5A913] transition-colors cursor-pointer"
                   >
@@ -213,16 +222,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigate('about')}
+                    onClick={() => onNavigate('terms')}
                     className="hover:text-[#E5A913] transition-colors cursor-pointer"
                   >
-                    ডেলিভারি ও রিটার্ন নীতি
+                    শর্তাবলী ও নীতিমালা
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
-                    onClick={() => onNavigate('about')}
+                    onClick={() => onNavigate('privacy')}
                     className="hover:text-[#E5A913] transition-colors cursor-pointer"
                   >
                     গোপনীয়তা ও নিরাপত্তা নীতি

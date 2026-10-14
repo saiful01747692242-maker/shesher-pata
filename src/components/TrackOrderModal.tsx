@@ -6,6 +6,7 @@ import { X, Search, Package, Truck, CheckCircle2, Clock, AlertCircle, ExternalLi
 import { toBengaliNumber, formatPrice } from '../utils/formatters';
 import { useData } from '../context/DataContext';
 import { OrderDetails } from '../types';
+import { orderService } from '../services/orderService';
 
 interface TrackOrderModalProps {
   isOpen: boolean;
@@ -16,18 +17,39 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
   const { orders } = useData();
   const [query, setQuery] = useState('');
   const [searched, setSearched] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [matchedOrder, setMatchedOrder] = useState<OrderDetails | null>(null);
 
   if (!isOpen) return null;
 
-  const handleTrack = (e: React.FormEvent) => {
+  const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      const q = query.trim().toLowerCase();
-      const found = orders.find(
-        (o) => o.orderId.toLowerCase() === q || o.phone.toLowerCase() === q
-      );
-      setMatchedOrder(found || null);
+    if (!query.trim()) return;
+    const q = query.trim().toLowerCase();
+    const found = orders.find(
+      (o) => o.orderId.toLowerCase() === q || o.phone.toLowerCase() === q
+    );
+    if (found) {
+      setMatchedOrder(found);
+      setSearched(true);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const serverOrders = await orderService.fetchCustomerOrders({
+        orderId: query.trim(),
+        phone: query.trim(),
+      });
+      if (serverOrders && serverOrders.length > 0) {
+        setMatchedOrder(serverOrders[0]);
+      } else {
+        setMatchedOrder(null);
+      }
+    } catch {
+      setMatchedOrder(null);
+    } finally {
+      setIsLoading(false);
       setSearched(true);
     }
   };
@@ -76,9 +98,14 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
           />
           <button
             type="submit"
-            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-1.5"
+            disabled={isLoading}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-zinc-950 font-bold rounded-xl text-xs sm:text-sm transition-colors cursor-pointer flex items-center gap-1.5"
           >
-            <Search className="w-4 h-4" />
+            {isLoading ? (
+              <div className="w-4 h-4 border-2 border-zinc-950 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
             <span>খুঁজুন</span>
           </button>
         </form>

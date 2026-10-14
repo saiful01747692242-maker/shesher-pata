@@ -45,23 +45,30 @@ import {
   CheckCircle2,
   Calendar,
   Loader2,
+  Database,
 } from 'lucide-react';
 import { useData } from '../../src/context/DataContext';
-import { Book, Banner, Category, Author, Publisher, OrderDetails } from '../../src/types';
+import { Book, Banner, Category, Author, Publisher, OrderDetails, Coupon } from '../../src/types';
 import { formatPrice, toBengaliNumber } from '../../src/utils/formatters';
 import { bookService } from '../../src/services/bookService';
 import { SearchableCombobox, ComboboxOption } from '../../src/components/SearchableCombobox';
-import { normalizeBengali, matchesAuthor, matchesCategory } from '../../src/utils/filterUtils';
+import { normalizeBengali, matchesAuthor, matchesCategory, getCategoryDisplayName, CANONICAL_CATEGORIES } from '../../src/utils/filterUtils';
+import { BannerManagementTab } from '../../src/components/admin/BannerManagementTab';
+import { CouponManagementTab } from '../../src/components/admin/CouponManagementTab';
+import { BackupRestoreTab } from '../../src/components/admin/BackupRestoreTab';
 
 function AdminDashboardContent() {
   const {
     books,
     isBooksLoading,
     banners,
+    coupons,
     categories,
     authors,
     publishers,
     orders,
+    isOrdersLoading,
+    refreshOrders,
     addBook,
     updateBook,
     deleteBook,
@@ -100,7 +107,7 @@ function AdminDashboardContent() {
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'books' | 'banners' | 'categories' | 'publishers' | 'authors' | 'orders' | 'settings' | 'store_settings' | 'steadfast'
+    'dashboard' | 'books' | 'banners' | 'coupons' | 'categories' | 'publishers' | 'authors' | 'orders' | 'settings' | 'store_settings' | 'steadfast' | 'backup_restore'
   >('dashboard');
 
   // Book Management States
@@ -161,6 +168,35 @@ function AdminDashboardContent() {
     isInternational: boolean;
     sectionIds: string[];
   }>(getInitialBookForm());
+
+  // Memoized complete list of categories (dynamic + canonical + current form category)
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    const list: { id: string; name: string }[] = [];
+
+    // First add DB categories
+    categories.forEach((c) => {
+      if (c.name && !set.has(c.name.trim())) {
+        set.add(c.name.trim());
+        list.push({ id: c.id || c.name, name: c.name.trim() });
+      }
+    });
+
+    // Then add canonical categories if not present
+    CANONICAL_CATEGORIES.forEach((cc) => {
+      if (!set.has(cc.name.trim())) {
+        set.add(cc.name.trim());
+        list.push({ id: cc.id, name: cc.name.trim() });
+      }
+    });
+
+    // If current bookForm has a category not yet in list, keep it
+    if (bookForm?.category && !set.has(bookForm.category.trim())) {
+      list.push({ id: bookForm.category, name: bookForm.category.trim() });
+    }
+
+    return list;
+  }, [categories, bookForm?.category]);
 
   // Comprehensive author options combining authors state and unique authors from catalog
   const authorComboboxOptions = useMemo<ComboboxOption[]>(() => {
@@ -330,6 +366,7 @@ function AdminDashboardContent() {
       .then((data) => {
         if (isMounted && data?.authenticated) {
           setIsAuthenticated(true);
+          refreshOrders();
         } else if (isMounted) {
           setIsAuthenticated(false);
         }
@@ -342,6 +379,13 @@ function AdminDashboardContent() {
       isMounted = false;
     };
   }, []);
+
+  // Refresh orders when admin tab changes or on authenticated mount
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'orders') {
+      refreshOrders();
+    }
+  }, [isAuthenticated, activeTab]);
 
   // Handle Login via server-side verification
   const handleLogin = async (e: React.FormEvent) => {
@@ -363,6 +407,7 @@ function AdminDashboardContent() {
       if (res.ok && data.success) {
         setIsAuthenticated(true);
         setLoginPass('');
+        refreshOrders();
         showNotice(data.message || 'স্বাগতম! অ্যাডমিন প্যানেলে সফলভাবে প্রবেশ করেছেন।');
       } else {
         setLoginError(data.error || 'ভুল ইউজারনেম বা পাসওয়ার্ড প্রদান করেছেন!');
@@ -482,6 +527,7 @@ function AdminDashboardContent() {
       showNotice(editingBookId ? `"${title}" সেন্ট্রাল ডাটাবেজে আপডেট হচ্ছে...` : `"${title}" সেন্ট্রাল ডাটাবেজে সংরক্ষিত হচ্ছে...`);
 
       const cleanImage = (bookForm.image || '').trim();
+      const resolvedCategory = getCategoryDisplayName(bookForm.category, categories) || normalizeBengali(bookForm.category) || 'উপন্যাস';
 
       if (editingBookId) {
         // Edit existing
@@ -491,7 +537,7 @@ function AdminDashboardContent() {
           english_name: englishName,
           author: normalizeBengali(bookForm.author),
           publisher: normalizeBengali(bookForm.publisher) || 'বাতিঘর',
-          category: normalizeBengali(bookForm.category) || 'উপন্যাস',
+          category: resolvedCategory,
           price: Number(bookForm.price),
           originalPrice: Number(bookForm.originalPrice),
           discount: Number(bookForm.discount),
@@ -519,7 +565,7 @@ function AdminDashboardContent() {
           english_name: englishName,
           author: normalizeBengali(bookForm.author),
           publisher: normalizeBengali(bookForm.publisher) || 'বাতিঘর',
-          category: normalizeBengali(bookForm.category) || 'উপন্যাস',
+          category: resolvedCategory,
           price: Number(bookForm.price),
           originalPrice: Number(bookForm.originalPrice),
           discount: Number(bookForm.discount),
@@ -802,7 +848,15 @@ function AdminDashboardContent() {
   };
 
   const safeBooks = Array.isArray(books) ? books : [];
-  const safeOrders = Array.isArray(orders) ? orders : [];
+  const safeOrders = useMemo(() => {
+    if (!Array.isArray(orders)) return [];
+    return [...orders].sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (timeA && timeB) return timeB - timeA;
+      return 0;
+    });
+  }, [orders]);
 
   // Filtered Books List
   const filteredBooks = useMemo(() => {
@@ -819,7 +873,7 @@ function AdminDashboardContent() {
         (b.isbn && String(b.isbn).toLowerCase().includes(search));
 
       const matchCategory =
-        bookCategoryFilter === 'all' || b.category === bookCategoryFilter;
+        bookCategoryFilter === 'all' || matchesCategory(b.category, b.tags, bookCategoryFilter, categories);
 
       const stock = typeof b.stock === 'number' ? b.stock : 0;
       const matchStock =
@@ -830,10 +884,23 @@ function AdminDashboardContent() {
 
       return Boolean(matchSearch && matchCategory && matchStock);
     });
-  }, [safeBooks, bookSearch, bookCategoryFilter, bookStockFilter]);
+  }, [safeBooks, bookSearch, bookCategoryFilter, bookStockFilter, categories]);
 
   // Helper to check if an order was placed today
-  const isTodayOrder = (orderDate: string) => {
+  const isTodayOrder = (orderDate: string, createdAt?: string) => {
+    if (createdAt) {
+      const d = new Date(createdAt);
+      if (!isNaN(d.getTime())) {
+        const now = new Date();
+        if (
+          d.getFullYear() === now.getFullYear() &&
+          d.getMonth() === now.getMonth() &&
+          d.getDate() === now.getDate()
+        ) {
+          return true;
+        }
+      }
+    }
     if (!orderDate) return false;
     try {
       const now = new Date();
@@ -879,7 +946,7 @@ function AdminDashboardContent() {
 
   // Today's Orders list
   const todayOrders = useMemo(() => {
-    return safeOrders.filter((ord) => ord && isTodayOrder(ord.date));
+    return safeOrders.filter((ord) => ord && isTodayOrder(ord.date, ord.created_at));
   }, [safeOrders]);
 
   // Today's Revenue (Non-cancelled orders)
@@ -904,7 +971,7 @@ function AdminDashboardContent() {
       const matchStatus =
         orderStatusFilter === 'all' || ord.status === orderStatusFilter;
       const matchDate =
-        orderDateFilter === 'all' || isTodayOrder(ord.date);
+        orderDateFilter === 'all' || isTodayOrder(ord.date, ord.created_at);
       const query = (orderSearch || '').toLowerCase().trim();
       const matchQuery =
         !query ||
@@ -1521,10 +1588,27 @@ function AdminDashboardContent() {
             >
               <div className="flex items-center gap-2.5">
                 <ImageIcon className="w-4 h-4" />
-                <span>ব্যানার ও স্লাইডার</span>
+                <span>ব্যানার ব্যবস্থাপনা</span>
               </div>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 font-bold">
                 {toBengaliNumber(banners?.length || 0)}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('coupons')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                activeTab === 'coupons'
+                  ? 'bg-amber-500 text-zinc-950 shadow-xs'
+                  : 'text-zinc-700 hover:bg-zinc-100'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Tag className="w-4 h-4" />
+                <span>কুপন ব্যবস্থাপনা</span>
+              </div>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 font-bold">
+                {toBengaliNumber(coupons?.length || 0)}
               </span>
             </button>
 
@@ -1641,8 +1725,25 @@ function AdminDashboardContent() {
               >
                 <div className="flex items-center gap-2.5">
                   <Settings className="w-4 h-4" />
-                  <span>ডেটা ব্যাকআপ ও সেটিংস</span>
+                  <span>সাইট সেটিংস ও পিক্সেল</span>
                 </div>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('backup_restore')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                  activeTab === 'backup_restore'
+                    ? 'bg-amber-500 text-zinc-950 shadow-xs'
+                    : 'text-zinc-700 hover:bg-zinc-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Database className="w-4 h-4 text-amber-700" />
+                  <span>ব্যাকআপ ও রিস্টোর</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                  ZIP
+                </span>
               </button>
             </div>
           </div>
@@ -1902,7 +2003,7 @@ function AdminDashboardContent() {
                       className="w-full px-3 py-2 rounded-xl border border-zinc-200 text-xs bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none cursor-pointer"
                     >
                       <option value="all">সকল ক্যাটাগরি</option>
-                      {categories.map((c) => (
+                      {availableCategories.map((c) => (
                         <option key={c.id} value={c.name}>
                           {c.name}
                         </option>
@@ -2114,150 +2215,12 @@ function AdminDashboardContent() {
 
           {/* TAB: BANNERS & SLIDERS */}
           {activeTab === 'banners' && (
-            <div className="space-y-4">
-              <div className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold text-zinc-900">
-                    ব্যানার ও স্লাইডার ব্যবস্থাপনা ({toBengaliNumber(banners?.length || 0)} টি)
-                  </h2>
-                  <p className="text-xs text-zinc-500">
-                    বাংলা ও ইংরেজি উভয় ভাষার জন্য পৃথক ব্যানার ইমেজ, শিরোনাম ও অফার ব্যানার নিয়ন্ত্রণ করুন
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddBanner}
-                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>নতুন ব্যানার যোগ করুন</span>
-                </button>
-              </div>
+            <BannerManagementTab onShowNotice={showNotice} />
+          )}
 
-              {/* Banners List */}
-              <div className="grid grid-cols-1 gap-4">
-                {(!banners || banners.length === 0) ? (
-                  <div className="p-12 text-center bg-white rounded-3xl border border-zinc-200 text-zinc-400">
-                    কোনো ব্যানার পাওয়া যায়নি!
-                  </div>
-                ) : (
-                  banners.map((ban) => (
-                    <div
-                      key={ban.id}
-                      className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 hover:border-amber-300 transition-all"
-                    >
-                      {/* Image Previews: Side by Side (Bangla & English) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full lg:w-3/5 shrink-0">
-                        {/* Bangla Banner */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-zinc-600">
-                            <span className="flex items-center gap-1">
-                              <span>🇧🇩 বাংলা ব্যানার</span>
-                            </span>
-                          </div>
-                          <div className="relative aspect-16/7 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200 shadow-2xs">
-                            <img
-                              src={ban.bangla_image || ban.english_image}
-                              alt={ban.title}
-                              className="w-full h-full object-cover"
-                            />
-                            {!ban.bangla_image && (
-                              <span className="absolute inset-0 bg-black/60 text-white text-[10px] flex items-center justify-center font-bold">
-                                (English fallback used)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* English Banner */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-zinc-600">
-                            <span className="flex items-center gap-1">
-                              <span>🇬🇧 English Banner</span>
-                            </span>
-                          </div>
-                          <div className="relative aspect-16/7 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200 shadow-2xs">
-                            <img
-                              src={ban.english_image || ban.bangla_image}
-                              alt={ban.english_title || ban.title}
-                              className="w-full h-full object-cover"
-                            />
-                            {!ban.english_image && (
-                              <span className="absolute inset-0 bg-black/60 text-white text-[10px] flex items-center justify-center font-bold">
-                                (Bangla fallback used)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Banner Details */}
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              ban.status === 'active'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-zinc-100 text-zinc-600'
-                            }`}
-                          >
-                            {ban.status === 'active' ? 'সক্রিয় / Active' : 'নিষ্ক্রিয় / Inactive'}
-                          </span>
-                          {ban.badge && (
-                            <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-black">
-                              {ban.badge}
-                            </span>
-                          )}
-                          <span className="text-[11px] text-zinc-400 font-bold">
-                            ক্রম: #{toBengaliNumber(ban.sort_order)}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h4 className="font-bold text-zinc-900 text-sm">{ban.title}</h4>
-                          {ban.english_title && (
-                            <p className="text-xs font-semibold text-amber-800">
-                              EN: {ban.english_title}
-                            </p>
-                          )}
-                          <p className="text-xs text-zinc-500 mt-0.5">{ban.subtitle}</p>
-                          {ban.english_subtitle && (
-                            <p className="text-[11px] text-zinc-400 italic">
-                              {ban.english_subtitle}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditBanner(ban)}
-                          className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                          <span>সম্পাদনা</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(`আপনি কি "${ban.title}" ব্যানারটি মুছে ফেলতে নিশ্চিত?`)) {
-                              deleteBanner(ban.id);
-                              showNotice('ব্যানার সফলভাবে মুছে ফেলা হয়েছে!');
-                            }
-                          }}
-                          className="p-2 rounded-xl bg-zinc-100 hover:bg-rose-100 text-zinc-600 hover:text-rose-900 cursor-pointer transition-colors"
-                          title="মুছে ফেলুন"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+          {/* TAB: COUPON MANAGEMENT */}
+          {activeTab === 'coupons' && (
+            <CouponManagementTab onShowNotice={showNotice} />
           )}
 
           {/* TAB 3: CATEGORIES */}
@@ -2308,7 +2271,15 @@ function AdminDashboardContent() {
                         <h4 className="font-bold text-zinc-900 text-sm">{cat.name}</h4>
                         <p className="text-xs text-zinc-400">{cat.englishName}</p>
                         <span className="text-[10px] text-amber-700 font-bold">
-                          {toBengaliNumber(cat.bookCount || 0)} টি বই
+                          {toBengaliNumber(
+                            books.filter(
+                              (b) =>
+                                matchesCategory(b.category, b.tags, cat.name, categories) ||
+                                (cat.englishName && matchesCategory(b.category, b.tags, cat.englishName, categories)) ||
+                                (cat.slug && matchesCategory(b.category, b.tags, cat.slug, categories)) ||
+                                (cat.id && matchesCategory(b.category, b.tags, cat.id, categories))
+                            ).length || cat.bookCount || 0
+                          )} টি বই
                         </span>
                       </div>
                     </div>
@@ -2671,6 +2642,19 @@ function AdminDashboardContent() {
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       আজকের অর্ডার ({toBengaliNumber(todayOrders.length)})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        refreshOrders();
+                        showNotice('অর্ডার তালিকা রিফ্রেশ করা হয়েছে!');
+                      }}
+                      disabled={isOrdersLoading}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 text-zinc-700 hover:text-amber-900 hover:bg-amber-50 border border-zinc-200"
+                      title="নতুন অর্ডার যাচাই করতে রিফ্রেশ করুন"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isOrdersLoading ? 'animate-spin' : ''}`} />
+                      <span>রিফ্রেশ</span>
                     </button>
                   </div>
                 </div>
@@ -3645,15 +3629,26 @@ function AdminDashboardContent() {
                       ওয়েবসাইটের মেটা পিক্সেল ট্র্যাকিং কনফিগারেশন, ডেটা ব্যাকআপ ও সিস্টেম রিস্টোর পরিচালনা করুন
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('store_settings')}
-                    className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors self-start sm:self-auto cursor-pointer"
-                  >
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span>ঠিকানা ও যোগাযোগ সেটিংস</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('backup_restore')}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Database className="w-3.5 h-3.5" />
+                      <span>ব্যাকআপ ও রিস্টোর হাব</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('store_settings')}
+                      className="px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>ঠিকানা ও যোগাযোগ</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -3859,9 +3854,9 @@ function AdminDashboardContent() {
                 <div className="flex items-center gap-3 text-rose-900">
                   <AlertCircle className="w-6 h-6 text-rose-600" />
                   <div>
-                    <h3 className="text-base font-bold">ফ্যাক্টরি রিসেট (Factory Reset)</h3>
+                    <h3 className="text-base font-bold">ক্যাশ ও সেটিংস রিসেট (Cache Reset & Sync)</h3>
                     <p className="text-xs text-rose-700">
-                      সতর্কতা: এটি আপনার সংরক্ষিত নতুন বই এবং স্থানীয় পরিবর্তন মুছে দিয়ে মূল ডিফল্ট ডেটায় ফিরিয়ে নিয়ে যাবে।
+                      এটি ব্রাউজারের লোকাল ক্যাশ পরিষ্কার করে সেন্ট্রাল Supabase ডাটাবেজ থেকে সর্বশেষ লাইভ ডেটা রিফ্রেশ করবে। সেন্ট্রাল ডাটাবেজের লাইভ বই অক্ষত থাকবে।
                     </p>
                   </div>
                 </div>
@@ -3870,20 +3865,31 @@ function AdminDashboardContent() {
                   onClick={() => {
                     if (
                       confirm(
-                        'আপনি কি নিশ্চিতভাবে সকল ডেটা মুছে মূল ফ্যাক্টরি সেটিংসে রিসেট করতে চান? এই প্রক্রিয়া ফেরানো যাবে না।'
+                        'আপনি কি ব্রাউজারের লোকাল ক্যাশ পরিষ্কার করে সেন্ট্রাল ডাটাবেজ থেকে সকল ডেটা রিফ্রেশ করতে চান?'
                       )
                     ) {
                       resetAllData();
-                      showNotice('ডেটাবেজ সফলভাবে ফ্যাক্টরি রিসেট করা হয়েছে!');
+                      showNotice('লোকাল ক্যাশ সফলভাবে পরিষ্কার করে সেন্ট্রাল ডাটাবেজ থেকে লাইভ ডেটা সিঙ্ক করা হয়েছে!');
                     }
                   }}
                   className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition-all shadow-sm"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  <span>মূল ফ্যাক্টরি ডেটায় ফিরিয়ে নিন</span>
+                  <span>ক্যাশ রিসেট ও লাইভ রিফ্রেশ</span>
                 </button>
               </div>
             </div>
+          )}
+
+          {/* TAB: BACKUP & RESTORE */}
+          {activeTab === 'backup_restore' && (
+            <BackupRestoreTab
+              onSyncComplete={() => {
+                syncBooksWithSupabase();
+                refreshOrders();
+              }}
+              showNotice={showNotice}
+            />
           )}
         </main>
       </div>
@@ -4018,7 +4024,7 @@ function AdminDashboardContent() {
                     onChange={(e) => setBookForm({ ...bookForm, category: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none cursor-pointer"
                   >
-                    {categories.map((c) => (
+                    {availableCategories.map((c) => (
                       <option key={c.id} value={c.name}>
                         {c.name}
                       </option>
@@ -4312,256 +4318,7 @@ function AdminDashboardContent() {
         </div>
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* MODAL: ADD / EDIT BANNER (Bilingual Support) */}
-      {/* ------------------------------------------------------------- */}
-      {isBannerModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6">
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 my-auto max-h-[95vh] flex flex-col">
-            <div className="p-4 sm:p-5 border-b border-zinc-200 flex items-center justify-between bg-[#FAF8F4]">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-amber-500 text-zinc-950 flex items-center justify-center font-black">
-                  <ImageIcon className="w-4 h-4" />
-                </div>
-                <h3 className="font-bold text-base sm:text-lg text-zinc-900">
-                  {editingBannerId ? 'ব্যানার সম্পাদনা করুন' : 'নতুন ব্যানার যোগ করুন'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsBannerModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <form onSubmit={handleSaveBanner} className="p-5 sm:p-6 overflow-y-auto space-y-4">
-              {/* Titles Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">
-                    🇧🇩 বাংলা শিরোনাম (Bangla Headline) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={bannerForm.title}
-                    onChange={(e) => setBannerForm({ ...bannerForm, title: e.target.value })}
-                    placeholder="যেমন: স্টুডিও জিবলি বিশেষ আর্ট কালেকশন"
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">
-                    🇬🇧 ইংরেজি শিরোনাম (English Headline)
-                  </label>
-                  <input
-                    type="text"
-                    value={bannerForm.english_title}
-                    onChange={(e) => setBannerForm({ ...bannerForm, english_title: e.target.value })}
-                    placeholder="e.g. Studio Ghibli Inspired Collection"
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none font-sans"
-                  />
-                </div>
-              </div>
-
-              {/* Subtitles Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">
-                    বাংলা সাব-হেডিং (Bangla Subtitle)
-                  </label>
-                  <input
-                    type="text"
-                    value={bannerForm.subtitle}
-                    onChange={(e) => setBannerForm({ ...bannerForm, subtitle: e.target.value })}
-                    placeholder="যেমন: নোটবুক, বুকমার্ক ও মেমোপ্যাড কালেকশন"
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">
-                    ইংরেজি সাব-হেডিং (English Subtitle)
-                  </label>
-                  <input
-                    type="text"
-                    value={bannerForm.english_subtitle}
-                    onChange={(e) => setBannerForm({ ...bannerForm, english_subtitle: e.target.value })}
-                    placeholder="e.g. Notebooks • Bookmarks • Memopads"
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none font-sans"
-                  />
-                </div>
-              </div>
-
-              {/* Bilingual Banner Images Upload & URL Section */}
-              <div className="p-4 rounded-2xl bg-[#FAF8F4] border border-amber-200 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
-                    <ImageIcon className="w-4 h-4 text-amber-600" />
-                    <span>ভাষানুযায়ী ব্যানার ছবি (Bilingual Banner Images)</span>
-                  </span>
-                  <span className="text-[10px] text-zinc-500">অনুপাত: ১৬:৬ (১৬০০×৬০০ পিক্সেল)</span>
-                </div>
-
-                {/* Bangla Banner Upload */}
-                <div className="space-y-2 p-3 bg-white rounded-xl border border-zinc-200">
-                  <label className="block text-xs font-bold text-zinc-800">
-                    🇧🇩 বাংলা মোডের ব্যানার ছবি (Bangla Banner Image) *
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={bannerForm.bangla_image}
-                      onChange={(e) => setBannerForm({ ...bannerForm, bangla_image: e.target.value })}
-                      placeholder="https://... অথবা কম্পিউটার থেকে আপলোড করুন"
-                      className="flex-1 px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white outline-none"
-                    />
-                    <label className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>আপলোড</span>
-                      <input
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        onChange={(e) =>
-                          handleFileUpload(e, (url) =>
-                            setBannerForm((prev) => ({ ...prev, bangla_image: url }))
-                          )
-                        }
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {bannerForm.bangla_image && (
-                    <div className="relative aspect-16/6 rounded-lg overflow-hidden bg-zinc-100 border border-zinc-200 mt-1 max-h-36">
-                      <img
-                        src={bannerForm.bangla_image}
-                        alt="Bangla Banner Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* English Banner Upload */}
-                <div className="space-y-2 p-3 bg-white rounded-xl border border-zinc-200">
-                  <label className="block text-xs font-bold text-zinc-800">
-                    🇬🇧 ইংরেজি মোডের ব্যানার ছবি (English Banner Image)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={bannerForm.english_image}
-                      onChange={(e) => setBannerForm({ ...bannerForm, english_image: e.target.value })}
-                      placeholder="https://... অথবা কম্পিউটার থেকে আপলোড করুন"
-                      className="flex-1 px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white outline-none"
-                    />
-                    <label className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs flex items-center gap-1 cursor-pointer shrink-0">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>আপলোড</span>
-                      <input
-                        type="file"
-                        accept="image/png, image/jpeg, image/webp"
-                        onChange={(e) =>
-                          handleFileUpload(e, (url) =>
-                            setBannerForm((prev) => ({ ...prev, english_image: url }))
-                          )
-                        }
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {bannerForm.english_image && (
-                    <div className="relative aspect-16/6 rounded-lg overflow-hidden bg-zinc-100 border border-zinc-200 mt-1 max-h-36">
-                      <img
-                        src={bannerForm.english_image}
-                        alt="English Banner Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Status, Sort Order, Badge, Link */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">স্থিতি / Status</label>
-                  <select
-                    value={bannerForm.status}
-                    onChange={(e) =>
-                      setBannerForm({ ...bannerForm, status: e.target.value as any })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white outline-none"
-                  >
-                    <option value="active">সক্রিয় / Active</option>
-                    <option value="inactive">নিষ্ক্রিয় / Inactive</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">ক্রম / Sort Order</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={bannerForm.sort_order}
-                    onChange={(e) =>
-                      setBannerForm({ ...bannerForm, sort_order: Number(e.target.value) || 1 })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">ব্যাজ / Badge</label>
-                  <input
-                    type="text"
-                    value={bannerForm.badge}
-                    onChange={(e) => setBannerForm({ ...bannerForm, badge: e.target.value })}
-                    placeholder="যেমন: Special Offer"
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-zinc-700 mb-1">লিংক / Target</label>
-                  <select
-                    value={bannerForm.link}
-                    onChange={(e) => setBannerForm({ ...bannerForm, link: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white outline-none"
-                  >
-                    <option value="books">বইসমূহ / Books</option>
-                    <option value="offers">অফার / Offers</option>
-                    <option value="stationery">স্টেশনারি / Stationery</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="pt-4 border-t border-zinc-200 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsBannerModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-zinc-300 hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-colors cursor-pointer"
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <Save className="w-4 h-4" />
-                  <span>{editingBannerId ? 'পরিবর্তন সংরক্ষণ করুন' : 'ব্যানার সংরক্ষণ সম্পন্ন করুন'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ------------------------------------------------------------- */}
       {/* MODAL 2: ADD / EDIT CATEGORY */}

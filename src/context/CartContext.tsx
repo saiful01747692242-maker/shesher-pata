@@ -5,6 +5,7 @@ import { Book, CartItem } from '../types';
 import { useToast } from './ToastContext';
 import { useData } from './DataContext';
 import { trackAddToCart } from '../utils/metaPixel';
+import { couponService } from '../services/couponService';
 
 interface CartContextType {
   cart: CartItem[];
@@ -16,7 +17,7 @@ interface CartContextType {
   discountAmount: number;
   couponCode: string;
   couponDiscountPercentage: number;
-  applyCoupon: (code: string) => boolean;
+  applyCoupon: (code: string) => Promise<boolean> | boolean;
   removeCoupon: () => void;
   deliveryOption: 'inside_dhaka' | 'outside_dhaka';
   setDeliveryOption: (option: 'inside_dhaka' | 'outside_dhaka') => void;
@@ -41,6 +42,15 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const [couponCode, setCouponCode] = useState<string>('');
   const [couponDiscountPercentage, setCouponDiscountPercentage] = useState<number>(0);
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    id: string;
+    code: string;
+    discount_type: 'percentage' | 'fixed' | 'free_shipping';
+    discount_value: number;
+    discount_amount: number;
+    minimum_order_amount: number;
+    maximum_discount_amount: number | null;
+  } | null>(null);
   const [deliveryOption, setDeliveryOption] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
 
@@ -128,20 +138,24 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setCart([]);
   };
 
-  const applyCoupon = (code: string): boolean => {
+  const applyCoupon = async (code: string): Promise<boolean> => {
     const normalized = code.trim().toUpperCase();
-    if (normalized === 'SHESHER10' || normalized === 'BOI10') {
-      setCouponCode(normalized);
-      setCouponDiscountPercentage(10);
-      showToast('১০% স্পেশাল কুপন ডিসকাউন্ট প্রয়োগ করা হয়েছে! 🎉', 'success');
-      return true;
-    } else if (normalized === 'BOIMELA20') {
-      setCouponCode(normalized);
-      setCouponDiscountPercentage(20);
-      showToast('বইমেলা বিশেষ ২০% কুপন ডিসকাউন্ট প্রয়োগ হয়েছে! 🎉', 'success');
-      return true;
-    } else {
-      showToast('দুঃখিত! কুপন কোডটি সঠিক নয়।', 'error');
+    if (!normalized) return false;
+
+    try {
+      const res = await couponService.validateCoupon(normalized, subtotal);
+      if (res.valid && res.coupon) {
+        setCouponCode(res.coupon.code);
+        setCouponDiscountPercentage(res.coupon.discount_value);
+        setAppliedCoupon(res.coupon);
+        showToast(res.message || `${res.coupon.code} কুপন ডিসকাউন্ট প্রয়োগ করা হয়েছে! 🎉`, 'success');
+        return true;
+      } else {
+        showToast(res.error || 'দুঃখিত! কুপন কোডটি সঠিক নয়।', 'error');
+        return false;
+      }
+    } catch {
+      showToast('কুপন যাচাইয়ে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।', 'error');
       return false;
     }
   };
@@ -149,6 +163,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const removeCoupon = () => {
     setCouponCode('');
     setCouponDiscountPercentage(0);
+    setAppliedCoupon(null);
     showToast('কুপন কোড সরানো হয়েছে', 'info');
   };
 
@@ -168,8 +183,22 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Subtotal calculated with current book price
   const subtotal = cart.reduce((acc, item) => acc + item.book.price * item.quantity, 0);
 
-  // Additional coupon discount
-  const discountAmount = Math.round((subtotal * couponDiscountPercentage) / 100);
+  // Additional coupon discount calculated server-side or with active limits
+  let discountAmount = 0;
+  if (appliedCoupon && couponCode) {
+    if (appliedCoupon.minimum_order_amount > 0 && subtotal < appliedCoupon.minimum_order_amount) {
+      discountAmount = 0;
+    } else if (appliedCoupon.discount_type === 'percentage') {
+      discountAmount = Math.round((subtotal * appliedCoupon.discount_value) / 100);
+      if (appliedCoupon.maximum_discount_amount && discountAmount > appliedCoupon.maximum_discount_amount) {
+        discountAmount = appliedCoupon.maximum_discount_amount;
+      }
+    } else if (appliedCoupon.discount_type === 'fixed') {
+      discountAmount = Math.min(appliedCoupon.discount_value, subtotal);
+    }
+  } else if (couponDiscountPercentage > 0) {
+    discountAmount = Math.round((subtotal * couponDiscountPercentage) / 100);
+  }
 
   // Delivery fee: calculated dynamically based on admin configuration
   const isFreeDelivery = freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold;

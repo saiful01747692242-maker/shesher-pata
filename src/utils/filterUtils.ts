@@ -97,33 +97,139 @@ export const CANONICAL_CATEGORIES: CategoryDefinition[] = [
 ];
 
 /**
- * Check if a book's category or tags match a filter category.
- * Filter category can be an ID ('thriller', 'novel'), a canonical Bengali name ('থ্রিলার ও রহস্য'),
- * an English name, or an alias ('গোয়েন্দা ও থ্রিলার').
+ * Check if a category identifier or string represents "all books" / "all categories".
  */
+export function isAllCategory(category: string | undefined | null): boolean {
+  if (!category) return true;
+  const norm = normalizeBengali(category).trim().toLowerCase();
+  return (
+    norm === '' ||
+    norm === 'all' ||
+    norm === 'all-books' ||
+    norm === 'all_books' ||
+    norm === 'books' ||
+    norm === 'সকল বই' ||
+    norm === 'সব বই' ||
+    norm === 'সকল' ||
+    norm === 'সব' ||
+    norm === 'সকল ক্যাটাগরি' ||
+    norm === 'সব ক্যাটাগরি'
+  );
+}
+
+/**
+ * Resolve any category identifier (ID, English name, Bengali name, alias)
+ * to its canonical ID (e.g. 'স্পেশাল প্যাকেজ' -> 'package', 'Special Bundles' -> 'package').
+ */
+export function getCanonicalCategoryId(
+  categoryIdOrName: string | undefined | null,
+  dynamicCategories?: Category[]
+): string | null {
+  if (!categoryIdOrName || isAllCategory(categoryIdOrName)) return null;
+
+  const norm = normalizeBengali(categoryIdOrName).toLowerCase();
+
+  // 1. Check canonical definition list
+  const canonical = CANONICAL_CATEGORIES.find(
+    (c) =>
+      c.id.toLowerCase() === norm ||
+      normalizeBengali(c.name).toLowerCase() === norm ||
+      c.englishName.toLowerCase() === norm ||
+      c.aliases.some((a) => normalizeBengali(a).toLowerCase() === norm)
+  );
+  if (canonical) return canonical.id;
+
+  // 2. Check dynamic categories from database
+  if (dynamicCategories && dynamicCategories.length > 0) {
+    const dyn = dynamicCategories.find(
+      (c) =>
+        c.id.toLowerCase() === norm ||
+        normalizeBengali(c.name).toLowerCase() === norm ||
+        (c.englishName && c.englishName.toLowerCase() === norm) ||
+        (c.english_name && c.english_name.toLowerCase() === norm)
+    );
+    if (dyn) return dyn.id;
+  }
+
+  return norm;
+}
+
+/**
+ * Check if a book's category or tags match a filter category.
+ * Filter category can be an ID ('thriller', 'package'), a canonical Bengali name ('স্পেশাল প্যাকেজ'),
+ * an English name ('Special Bundles'), or an alias ('প্যাকেজ অফার').
+ */
+export function matchesCategory(
+  bookCategory: string | undefined | null,
+  filterCategory: string | undefined | null
+): boolean;
 export function matchesCategory(
   bookCategory: string | undefined | null,
   bookTags: string[] | undefined | null,
   filterCategory: string | undefined | null,
   dynamicCategories?: Category[]
+): boolean;
+export function matchesCategory(
+  bookCategory: string | undefined | null,
+  arg2?: string[] | string | null,
+  arg3?: string | Category[] | null,
+  arg4?: Category[]
 ): boolean {
-  if (!filterCategory || filterCategory === 'all') return true;
+  let bookTags: string[] | undefined | null;
+  let filterCategory: string | undefined | null;
+  let dynamicCategories: Category[] | undefined;
+
+  if (Array.isArray(arg2)) {
+    bookTags = arg2;
+    filterCategory = typeof arg3 === 'string' ? arg3 : undefined;
+    dynamicCategories = Array.isArray(arg4) ? arg4 : undefined;
+  } else if (typeof arg2 === 'string') {
+    bookTags = [];
+    filterCategory = arg2;
+    dynamicCategories = Array.isArray(arg3) ? (arg3 as Category[]) : undefined;
+  } else {
+    bookTags = [];
+    filterCategory = typeof arg3 === 'string' ? arg3 : undefined;
+    dynamicCategories = Array.isArray(arg4) ? arg4 : undefined;
+  }
+
+  if (!filterCategory || isAllCategory(filterCategory)) return true;
 
   const normFilter = normalizeBengali(filterCategory).toLowerCase();
   const normBookCat = normalizeBengali(bookCategory).toLowerCase();
   const normTags = (bookTags || []).map((t) => normalizeBengali(t).toLowerCase());
 
-  // 1. Direct exact or substring match
-  if (normBookCat && (normBookCat === normFilter || normBookCat.includes(normFilter) || normFilter.includes(normBookCat))) {
+  // 1. Direct exact match
+  if (normBookCat && normBookCat === normFilter) {
     return true;
   }
 
-  // 2. Direct match against tags
+  // 2. Bidirectional canonical resolution: if both resolve to the same canonical category ID
+  const filterCanonicalId = getCanonicalCategoryId(filterCategory, dynamicCategories);
+  const bookCanonicalId = getCanonicalCategoryId(bookCategory, dynamicCategories);
+  if (filterCanonicalId && bookCanonicalId && filterCanonicalId === bookCanonicalId) {
+    return true;
+  }
+
+  // 3. Direct substring match (e.g. 'উপন্যাস' in 'চিরায়ত উপন্যাস')
+  if (normBookCat && (normBookCat.includes(normFilter) || normFilter.includes(normBookCat))) {
+    return true;
+  }
+
+  // 4. Direct match against tags
   if (normTags.some((t) => t === normFilter || t.includes(normFilter) || normFilter.includes(t))) {
     return true;
   }
 
-  // 3. Resolve canonical definition for filter
+  // 5. Match tags against canonical filter ID
+  if (filterCanonicalId && normTags.some((t) => {
+    const tagCanonicalId = getCanonicalCategoryId(t, dynamicCategories);
+    return tagCanonicalId === filterCanonicalId;
+  })) {
+    return true;
+  }
+
+  // 6. Resolve canonical definition for filter and check candidate names
   const foundDef = CANONICAL_CATEGORIES.find((def) => {
     if (def.id.toLowerCase() === normFilter) return true;
     if (normalizeBengali(def.name).toLowerCase() === normFilter) return true;
@@ -175,25 +281,33 @@ export function getCategoryDisplayName(
   categoryIdOrName: string | undefined | null,
   dynamicCategories?: Category[]
 ): string {
-  if (!categoryIdOrName || categoryIdOrName === 'all') return 'সকল বই';
+  if (!categoryIdOrName || isAllCategory(categoryIdOrName)) return 'সকল বই';
 
-  const norm = normalizeBengali(categoryIdOrName);
+  const norm = normalizeBengali(categoryIdOrName).toLowerCase();
 
-  // Check dynamic categories first
+  // 1. Check canonical definitions by id, name, englishName, or aliases
+  const foundCanonical = CANONICAL_CATEGORIES.find(
+    (c) =>
+      c.id.toLowerCase() === norm ||
+      normalizeBengali(c.name).toLowerCase() === norm ||
+      c.englishName.toLowerCase() === norm ||
+      c.aliases.some((a) => normalizeBengali(a).toLowerCase() === norm)
+  );
+  if (foundCanonical) return foundCanonical.name;
+
+  // 2. Check dynamic categories
   if (dynamicCategories && dynamicCategories.length > 0) {
     const foundDyn = dynamicCategories.find(
-      (c) => c.id === norm || normalizeBengali(c.name) === norm || c.englishName?.toLowerCase() === norm.toLowerCase()
+      (c) =>
+        c.id.toLowerCase() === norm ||
+        normalizeBengali(c.name).toLowerCase() === norm ||
+        (c.englishName && c.englishName.toLowerCase() === norm) ||
+        (c.english_name && c.english_name.toLowerCase() === norm)
     );
     if (foundDyn) return foundDyn.name;
   }
 
-  // Check canonical list
-  const found = CANONICAL_CATEGORIES.find(
-    (c) => c.id === norm || normalizeBengali(c.name) === norm || c.aliases.some((a) => normalizeBengali(a) === norm)
-  );
-  if (found) return found.name;
-
-  return categoryIdOrName;
+  return normalizeBengali(categoryIdOrName);
 }
 
 /**

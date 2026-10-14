@@ -23,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'children', label: 'শিশু-কিশোর', categoryFilter: 'শিশু-কিশোর' },
   { id: 'poetry', label: 'কবিতা', categoryFilter: 'কবিতা' },
   { id: 'english', label: 'ইংরেজি ও অনুবাদ', categoryFilter: 'ইংরেজি ও অনুবাদ' },
+  { id: 'package', label: 'স্পেশাল প্যাকেজ', categoryFilter: 'স্পেশাল প্যাকেজ' },
   { id: 'authors', label: 'লেখক' },
   { id: 'publishers', label: 'প্রকাশনী' },
   { id: 'offers', label: 'স্পেশাল অফার', badge: '২০% ছাড়' },

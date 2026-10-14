@@ -13,6 +13,7 @@ interface AuthorsViewProps {
   initialAuthor?: string;
   onOpenDetails: (book: Book) => void;
   onQuickView: (book: Book) => void;
+  onBuyNow?: (book: Book) => void;
   onResetToHome: () => void;
 }
 
@@ -21,6 +22,7 @@ export const AuthorsView: React.FC<AuthorsViewProps> = ({
   initialAuthor,
   onOpenDetails,
   onQuickView,
+  onBuyNow,
   onResetToHome,
 }) => {
   const { authors } = useData();
@@ -212,6 +214,7 @@ export const AuthorsView: React.FC<AuthorsViewProps> = ({
                 book={book}
                 onOpenDetails={onOpenDetails}
                 onQuickView={onQuickView}
+                onBuyNow={onBuyNow}
               />
             ))}
           </div>

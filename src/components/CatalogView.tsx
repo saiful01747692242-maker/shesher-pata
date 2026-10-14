@@ -6,7 +6,7 @@ import { Book } from '../types';
 import { ProductCard } from './ProductCard';
 import { toBengaliNumber } from '../utils/formatters';
 import { useData } from '../context/DataContext';
-import { normalizeBengali, matchesCategory, matchesAuthor, getCategoryDisplayName } from '../utils/filterUtils';
+import { normalizeBengali, matchesCategory, matchesAuthor, getCategoryDisplayName, isAllCategory } from '../utils/filterUtils';
 
 interface CatalogViewProps {
   books: Book[];
@@ -14,6 +14,7 @@ interface CatalogViewProps {
   initialSearch?: string;
   onOpenDetails: (book: Book) => void;
   onQuickView: (book: Book) => void;
+  onBuyNow?: (book: Book) => void;
   onResetToHome?: () => void;
 }
 
@@ -40,10 +41,13 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   initialSearch = '',
   onOpenDetails,
   onQuickView,
+  onBuyNow,
   onResetToHome,
 }) => {
-  const { categories, authors, publishers } = useData();
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'all');
+  const { categories, authors, publishers, isBooksLoading } = useData();
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    initialCategory && !isAllCategory(initialCategory) ? initialCategory : 'all'
+  );
   const [selectedAuthor, setSelectedAuthor] = useState<string>('all');
   const [selectedPublisher, setSelectedPublisher] = useState<string>('all');
   const [selectedPriceRange, setSelectedPriceRange] = useState<string>('all');
@@ -55,7 +59,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   // Sync state when initialCategory prop changes from external navigation
   useEffect(() => {
     if (initialCategory) {
-      setSelectedCategory(initialCategory);
+      setSelectedCategory(isAllCategory(initialCategory) ? 'all' : initialCategory);
     }
   }, [initialCategory]);
 
@@ -113,7 +117,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
     }
 
     // Category filter
-    if (selectedCategory !== 'all') {
+    if (!isAllCategory(selectedCategory)) {
       result = result.filter((b) =>
         matchesCategory(b.category, b.tags, selectedCategory, categories)
       );
@@ -171,7 +175,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
   };
 
   const hasActiveFilters =
-    selectedCategory !== 'all' ||
+    !isAllCategory(selectedCategory) ||
     selectedAuthor !== 'all' ||
     selectedPublisher !== 'all' ||
     selectedPriceRange !== 'all' ||
@@ -192,7 +196,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </button>
             <span>/</span>
             <span className="font-bold text-zinc-900">বইসমূহ ও ক্যাটালগ</span>
-            {selectedCategory !== 'all' && (
+            {!isAllCategory(selectedCategory) && (
               <>
                 <span>/</span>
                 <span className="text-amber-700 font-semibold">{getCategoryDisplayName(selectedCategory, categories)}</span>
@@ -209,7 +213,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
         <div className="bg-[#211E15] text-[#FAF8F4] p-4 sm:p-6 rounded-2xl border border-[#3A3423] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm mb-6">
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-white">
-              {selectedCategory === 'all' ? 'আমাদের প্রকাশিত সকল বই' : `${getCategoryDisplayName(selectedCategory, categories)} কালেকশন`}
+              {isAllCategory(selectedCategory) ? 'আমাদের প্রকাশিত সকল বই' : `${getCategoryDisplayName(selectedCategory, categories)} কালেকশন`}
             </h1>
             <p className="text-xs text-zinc-300 mt-1">
               শতভাগ আসল ও মানসম্মত বই সরাসরি আপনার ঠিকানায়
@@ -251,7 +255,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
             </button>
           )}
 
-          {selectedCategory !== 'all' && (
+          {!isAllCategory(selectedCategory) && (
             <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-semibold flex items-center gap-1 border border-amber-200">
               ক্যাটাগরি: {getCategoryDisplayName(selectedCategory, categories)}
               <X
@@ -338,20 +342,22 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
               >
                 <span
                   className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
-                    selectedCategory === 'all' ? 'border-[#E5A913] bg-white' : 'border-zinc-300'
+                    isAllCategory(selectedCategory) ? 'border-[#E5A913] bg-white' : 'border-zinc-300'
                   }`}
                 >
-                  {selectedCategory === 'all' && <span className="w-2 h-2 rounded-full bg-[#E5A913]" />}
+                  {isAllCategory(selectedCategory) && <span className="w-2 h-2 rounded-full bg-[#E5A913]" />}
                 </span>
-                <span className={selectedCategory === 'all' ? 'font-bold text-zinc-950' : 'text-zinc-600'}>
+                <span className={isAllCategory(selectedCategory) ? 'font-bold text-zinc-950' : 'text-zinc-600'}>
                   সকল ক্যাটাগরি
                 </span>
               </label>
 
               {categories.map((cat) => {
                 const isSelected =
-                  matchesCategory(cat.name, [], selectedCategory, categories) ||
-                  cat.id === selectedCategory;
+                  !isAllCategory(selectedCategory) &&
+                  (matchesCategory(cat.name, [], selectedCategory, categories) ||
+                   cat.id.toLowerCase() === selectedCategory.toLowerCase() ||
+                   normalizeBengali(cat.name).toLowerCase() === normalizeBengali(selectedCategory).toLowerCase());
                 const bookCount = books.filter(
                   (b) =>
                     matchesCategory(b.category, b.tags, cat.name, categories) ||
@@ -525,7 +531,20 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
 
         {/* Right Main Product Area: 5-Column Grid */}
         <main className="flex-1 min-w-0">
-          {displayedBooks.length > 0 ? (
+          {isBooksLoading && books.length === 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              {[...Array(10)].map((_, i) => (
+                <div key={i} className="animate-pulse bg-[#FDFBF7] p-3 rounded-2xl border border-zinc-200 h-72 flex flex-col justify-between">
+                  <div className="bg-zinc-200 h-44 rounded-xl w-full" />
+                  <div className="space-y-2 mt-2">
+                    <div className="h-3.5 bg-zinc-200 rounded w-3/4" />
+                    <div className="h-3 bg-zinc-100 rounded w-1/2" />
+                    <div className="h-4 bg-amber-100 rounded w-1/3 mt-2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : displayedBooks.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
               {displayedBooks.map((book) => (
                 <div key={book.id} className="h-full">
@@ -533,6 +552,7 @@ export const CatalogView: React.FC<CatalogViewProps> = ({
                     book={book}
                     onOpenDetails={onOpenDetails}
                     onQuickView={onQuickView}
+                    onBuyNow={onBuyNow}
                   />
                 </div>
               ))}

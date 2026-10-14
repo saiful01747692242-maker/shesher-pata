@@ -1,18 +1,22 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, ShieldCheck, Truck, Banknote, ArrowRight, Printer, AlertCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useData } from '../context/DataContext';
-import { OrderDetails } from '../types';
+import { OrderDetails, CartItem } from '../types';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
 import { trackInitiateCheckout, trackPurchase } from '../utils/metaPixel';
+import { couponService } from '../services/couponService';
+import { orderService } from '../services/orderService';
+import { useAuth } from '../context/AuthContext';
 
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOrderSuccess: () => void;
+  directItem?: CartItem | null;
 }
 
 const DISTRICTS = [
@@ -20,27 +24,86 @@ const DISTRICTS = [
   'কুমিল্লা', 'গাজীপুর', 'নারায়ণগঞ্জ', 'বগুড়া', 'দিনাজপুর', 'ফরিদপুর', 'যশোর', 'কুষ্টিয়া'
 ];
 
+const CUSTOMER_INFO_KEY = 'shesher_pata_checkout_info';
+const BUY_NOW_STORAGE_KEY = 'shesher_pata_buy_now';
+
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen,
   onClose,
   onOrderSuccess,
+  directItem,
 }) => {
-  const { addOrder } = useData();
+  const { user, profile } = useAuth();
+  const { addOrder, siteSettings } = useData();
   const {
     cart,
     clearCart,
-    subtotal,
-    discountAmount,
-    couponCode,
+    subtotal: cartSubtotal,
+    discountAmount: cartDiscountAmount,
+    couponCode: cartCouponCode,
     deliveryOption,
     setDeliveryOption,
-    deliveryFee,
     insideDhakaFee,
     outsideDhakaFee,
-    grandTotal,
+    freeDeliveryThreshold,
+    grandTotal: cartGrandTotal,
   } = useCart();
 
-  // Form State
+  // Session-persisted directItem (restored on page refresh or navigation)
+  const [persistedDirectItem, setPersistedDirectItem] = useState<CartItem | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (directItem) {
+      setPersistedDirectItem(directItem);
+    } else if (isOpen) {
+      try {
+        const stored = sessionStorage.getItem(BUY_NOW_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && parsed.book && parsed.quantity) {
+            setPersistedDirectItem(parsed);
+          }
+        }
+      } catch {}
+    } else {
+      setPersistedDirectItem(null);
+    }
+  }, [isOpen, directItem]);
+
+  // Active items being purchased
+  const isDirectBuy = Boolean(directItem || persistedDirectItem);
+  const activeDirectItem = directItem || persistedDirectItem;
+  const activeItems: CartItem[] = useMemo(() => {
+    if (isDirectBuy && activeDirectItem) {
+      return [activeDirectItem];
+    }
+    return cart;
+  }, [isDirectBuy, activeDirectItem, cart]);
+
+  // Dynamic pricing calculations for active items
+  const activeSubtotal = useMemo(() => {
+    return activeItems.reduce(
+      (sum, item) => sum + (Number(item.book.price) || 0) * (Number(item.quantity) || 1),
+      0
+    );
+  }, [activeItems]);
+
+  const activeCouponCode = isDirectBuy ? '' : cartCouponCode;
+  const activeDiscountAmount = isDirectBuy ? 0 : cartDiscountAmount;
+
+  const isFreeDelivery = freeDeliveryThreshold > 0 && activeSubtotal >= freeDeliveryThreshold;
+  const activeDeliveryFee = activeItems.length === 0
+    ? 0
+    : isFreeDelivery
+    ? 0
+    : deliveryOption === 'inside_dhaka'
+    ? insideDhakaFee
+    : outsideDhakaFee;
+
+  const activeGrandTotal = Math.max(0, activeSubtotal - activeDiscountAmount + activeDeliveryFee);
+
+  // Form State with stored customer info restoration
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -51,73 +114,196 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const paymentMethod = 'cod';
   const [orderNotes, setOrderNotes] = useState('');
 
+  // Restore saved customer details from localStorage or user profile
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const savedInfoStr = localStorage.getItem(CUSTOMER_INFO_KEY);
+      if (savedInfoStr) {
+        const info = JSON.parse(savedInfoStr);
+        if (info.name && !name) setName(info.name);
+        if (info.phone && !phone) setPhone(info.phone);
+        if (info.email && !email) setEmail(info.email);
+        if (info.address && !address) setAddress(info.address);
+        if (info.district) setDistrict(info.district);
+        if (info.thana && !thana) setThana(info.thana);
+        if (info.postalCode && !postalCode) setPostalCode(info.postalCode);
+      }
+    } catch {}
+
+    if (profile || user) {
+      if (profile?.name && !name) setName(profile.name);
+      if (profile?.phone && !phone) setPhone(profile.phone);
+      if (user?.email && !email) setEmail(user.email);
+    }
+  }, [profile, user]);
+
+  // Save customer form info locally so refresh does not clear user inputs
+  const persistCustomerInfo = (updates: Partial<{ name: string; phone: string; email: string; address: string; district: string; thana: string; postalCode: string }>) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const current = {
+        name,
+        phone,
+        email,
+        address,
+        district,
+        thana,
+        postalCode,
+        ...updates,
+      };
+      localStorage.setItem(CUSTOMER_INFO_KEY, JSON.stringify(current));
+    } catch {}
+  };
+
   // Order Complete State
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
   const [completedOrderId, setCompletedOrderId] = useState<string | null>(null);
+  const [completedOrder, setCompletedOrder] = useState<OrderDetails | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Track InitiateCheckout only once per modal open session
+  // Track InitiateCheckout once per checkout open
   const hasInitiatedRef = useRef(false);
   useEffect(() => {
-    if (isOpen && !completedOrderId && cart.length > 0 && !hasInitiatedRef.current) {
+    if (isOpen && !completedOrderId && activeItems.length > 0 && !hasInitiatedRef.current) {
       hasInitiatedRef.current = true;
-      trackInitiateCheckout(cart, grandTotal);
+      trackInitiateCheckout(activeItems, activeGrandTotal);
     }
     if (!isOpen) {
       hasInitiatedRef.current = false;
+      setCompletedOrderId(null);
+      setCompletedOrder(null);
+      setFormError(null);
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
-  }, [isOpen, completedOrderId, cart, grandTotal]);
+  }, [isOpen, completedOrderId, activeItems, activeGrandTotal]);
 
   if (!isOpen) return null;
 
-  const handleSubmitOrder = (e: React.FormEvent) => {
+  const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent duplicate orders caused by repeated clicks, retries, or accidental double submissions
+    if (isSubmitting || isSubmittingRef.current) {
+      return;
+    }
+
     if (!name.trim() || !phone.trim() || !address.trim()) {
       setFormError('দয়া করে আপনার নাম, মোবাইল নম্বর এবং সম্পূর্ণ ঠিকানা প্রদান করুন।');
       return;
     }
 
-    if (phone.trim().length < 11) {
-      setFormError('সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: 01700000000)');
+    const cleanPhone = phone.trim().replace(/[^\d+০-৯]/g, '');
+    if (cleanPhone.length < 11) {
+      setFormError('সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: 017XXXXXXXX)');
       return;
+    }
+
+    if (activeItems.length === 0) {
+      setFormError('কোনো বই নির্বাচন করা হয়নি!');
+      return;
+    }
+
+    // Validate availability and stock
+    for (const item of activeItems) {
+      if (item.book.stock !== undefined && item.book.stock <= 0) {
+        setFormError(`দুঃখিত! "${item.book.title}" বইটি বর্তমানে স্টকে নেই।`);
+        return;
+      }
+      if (item.quantity <= 0) {
+        setFormError('বইয়ের সংখ্যা কমপক্ষে ১ হতে হবে।');
+        return;
+      }
+      if (item.book.stock !== undefined && item.quantity > item.book.stock) {
+        setFormError(`দুঃখিত! "${item.book.title}" বইটির শুধুমাত্র ${toBengaliNumber(item.book.stock)} টি কপি স্টকে উপলব্ধ আছে।`);
+        return;
+      }
     }
 
     setFormError(null);
     setIsSubmitting(true);
+    isSubmittingRef.current = true;
 
-    // Order placement
-    setTimeout(() => {
+    try {
       const orderId = `SP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
       const newOrder: OrderDetails = {
         orderId,
         date: new Date().toLocaleDateString('bn-BD'),
+        created_at: new Date().toISOString(),
         customerName: name.trim(),
         phone: phone.trim(),
         email: email.trim(),
+        userId: user?.id || undefined,
         address: address.trim(),
         district,
         thana: thana.trim(),
         postalCode: postalCode.trim(),
         deliveryOption,
-        deliveryFee,
-        paymentMethod,
-        items: [...cart],
-        subtotal,
-        discountAmount,
-        couponCode,
-        total: grandTotal,
+        deliveryFee: activeDeliveryFee,
+        paymentMethod: 'cod',
+        items: activeItems.map((it) => ({
+          book: {
+            ...it.book,
+            id: it.book.id,
+            title: it.book.title,
+            price: Number(it.book.price) || 0,
+            originalPrice: Number(it.book.originalPrice) || Number(it.book.price) || 0,
+            image: it.book.image || it.book.cover_image || '',
+            cover_image: it.book.cover_image || it.book.image || '',
+            author: it.book.author || '',
+          },
+          quantity: it.quantity,
+        })),
+        subtotal: activeSubtotal,
+        discountAmount: activeDiscountAmount,
+        couponCode: activeCouponCode || undefined,
+        total: activeGrandTotal,
         status: 'pending',
         orderNotes: orderNotes.trim(),
       };
 
+      // Persist order in Supabase PostgreSQL
+      const result = await orderService.createOrder(newOrder, user?.id);
+      if (!result.success) {
+        setFormError(result.error || 'অর্ডার সংরক্ষণ ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+        setIsSubmitting(false);
+        isSubmittingRef.current = false;
+        return;
+      }
+
+      // Add to local state and update pixel
       addOrder(newOrder);
       trackPurchase(newOrder);
 
+      // Record coupon usage if applicable
+      if (activeCouponCode) {
+        couponService.recordUsage(activeCouponCode, orderId).catch(() => {});
+      }
+
+      // Clean up Buy Now session, while preserving regular cart
+      if (isDirectBuy) {
+        try {
+          sessionStorage.removeItem(BUY_NOW_STORAGE_KEY);
+        } catch {}
+        setPersistedDirectItem(null);
+      } else {
+        // Standard checkout: clear cart
+        clearCart();
+      }
+
+      setCompletedOrder(newOrder);
       setCompletedOrderId(orderId);
       setIsSubmitting(false);
-      clearCart();
+      isSubmittingRef.current = false;
       onOrderSuccess();
-    }, 1200);
+    } catch (err: any) {
+      console.error('[CheckoutModal Error]:', err);
+      setFormError(err?.message || 'অর্ডার প্রক্রিয়া করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+      setIsSubmitting(false);
+      isSubmittingRef.current = false;
+    }
   };
 
   const handlePrint = () => {
@@ -125,7 +311,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6 font-['Noto_Sans_Bengali']">
       <motion.div
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -135,12 +321,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-zinc-200 flex items-center justify-between bg-[#FAF8F4]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500 text-zinc-950 flex items-center justify-center font-black">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-zinc-950 flex items-center justify-center font-black shadow-xs">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-zinc-900 leading-tight">
-                শেষের পাতা — নিরাপদ অর্ডার
+                {isDirectBuy ? 'এখনই কিনুন — সরাসরি নিরাপদ অর্ডার' : 'শেষের পাতা — নিরাপদ অর্ডার'}
               </h2>
               <span className="text-xs text-zinc-500">
                 ক্যাশ অন ডেলিভারি সুবিধা (বই হাতে পেয়ে মূল্য পরিশোধ)
@@ -171,7 +357,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
                   অর্ডার সফলভাবে গ্রহণ করা হয়েছে
                 </span>
-                <h3 className="text-2xl font-black text-zinc-900 mt-2 font-['Noto_Sans_Bengali']">
+                <h3 className="text-2xl font-black text-zinc-900 mt-2">
                   ধন্যবাদ, {name}!
                 </h3>
                 <p className="text-sm text-zinc-600 mt-1 max-w-md mx-auto">
@@ -181,7 +367,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
 
               {/* Order summary invoice receipt */}
-              <div className="max-w-md mx-auto p-4 rounded-2xl bg-[#FAF8F4] border border-zinc-200 text-left text-xs space-y-2">
+              <div className="max-w-md mx-auto p-4 rounded-2xl bg-[#FAF8F4] border border-zinc-200 text-left text-xs space-y-2.5">
                 <div className="flex justify-between border-b border-zinc-200/80 pb-2">
                   <span className="text-zinc-500">গ্রাহকের নাম:</span>
                   <span className="font-semibold text-zinc-900">{name}</span>
@@ -192,8 +378,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 <div className="flex justify-between border-b border-zinc-200/80 pb-2">
                   <span className="text-zinc-500">ডেলিভারি ঠিকানা:</span>
-                  <span className="font-semibold text-zinc-900 text-right max-w-[240px]">{address}, {thana}, {district}</span>
+                  <span className="font-semibold text-zinc-900 text-right max-w-[240px]">{address}, {thana ? `${thana}, ` : ''}{district}</span>
                 </div>
+
+                {/* Purchased Books Receipt Details */}
+                <div className="border-b border-zinc-200/80 pb-2 space-y-1.5">
+                  <span className="text-zinc-500 block font-medium">অর্ডারকৃত বই:</span>
+                  {completedOrder?.items?.map((it, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-zinc-800">
+                      <span className="truncate pr-2 font-semibold">
+                        {it.book?.title} <span className="text-zinc-400 font-normal">({toBengaliNumber(it.quantity)}টি)</span>
+                      </span>
+                      <span className="font-mono text-zinc-900 font-bold shrink-0">
+                        {formatPrice((Number(it.book?.price) || 0) * (it.quantity || 1))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="flex justify-between border-b border-zinc-200/80 pb-2">
                   <span className="text-zinc-500">পেমেন্ট মেথড:</span>
                   <span className="font-semibold text-zinc-900">
@@ -202,7 +404,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 <div className="flex justify-between pt-1 text-sm font-bold text-zinc-950">
                   <span>সর্বমোট প্রদেয়:</span>
-                  <span className="text-amber-800">{formatPrice(grandTotal)}</span>
+                  <span className="text-amber-800 text-base">{formatPrice(completedOrder?.total || activeGrandTotal)}</span>
                 </div>
               </div>
 
@@ -211,7 +413,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <button
                   type="button"
                   onClick={handlePrint}
-                  className="px-5 py-2.5 rounded-xl border border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs sm:text-sm font-semibold flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl border border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs sm:text-sm font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
                   <Printer className="w-4 h-4" />
                   <span>রসিদ প্রিন্ট করুন</span>
@@ -220,7 +422,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-zinc-950 text-xs sm:text-sm font-bold shadow-xs cursor-pointer active:scale-95"
+                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-zinc-950 text-xs sm:text-sm font-bold shadow-xs cursor-pointer active:scale-95 transition-all"
                 >
                   আরও বই দেখুন
                 </button>
@@ -253,7 +455,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         type="text"
                         required
                         value={name}
-                        onChange={(e) => setName(e.target.value)}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          persistCustomerInfo({ name: e.target.value });
+                        }}
                         placeholder="যেমন: সাকিব আল হাসান"
                         className="w-full px-3 py-2 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none transition-colors"
                       />
@@ -268,7 +473,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           type="tel"
                           required
                           value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
+                          onChange={(e) => {
+                            setPhone(e.target.value);
+                            persistCustomerInfo({ phone: e.target.value });
+                          }}
                           placeholder="01XXXXXXXXX"
                           className="w-full px-3 py-2 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none transition-colors"
                         />
@@ -281,7 +489,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <input
                           type="email"
                           value={email}
-                          onChange={(e) => setEmail(e.target.value)}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            persistCustomerInfo({ email: e.target.value });
+                          }}
                           placeholder="yourname@gmail.com"
                           className="w-full px-3 py-2 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none transition-colors"
                         />
@@ -296,7 +507,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         rows={2}
                         required
                         value={address}
-                        onChange={(e) => setAddress(e.target.value)}
+                        onChange={(e) => {
+                          setAddress(e.target.value);
+                          persistCustomerInfo({ address: e.target.value });
+                        }}
                         placeholder="যেমন: বাসা নং ১২, রোড নং ৪, ধানমন্ডি, ঢাকা"
                         className="w-full px-3 py-2 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none transition-colors"
                       />
@@ -308,8 +522,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <select
                           value={district}
                           onChange={(e) => {
-                            setDistrict(e.target.value);
-                            if (e.target.value === 'ঢাকা') {
+                            const newDist = e.target.value;
+                            setDistrict(newDist);
+                            persistCustomerInfo({ district: newDist });
+                            if (newDist === 'ঢাকা') {
                               setDeliveryOption('inside_dhaka');
                             } else {
                               setDeliveryOption('outside_dhaka');
@@ -328,7 +544,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <input
                           type="text"
                           value={thana}
-                          onChange={(e) => setThana(e.target.value)}
+                          onChange={(e) => {
+                            setThana(e.target.value);
+                            persistCustomerInfo({ thana: e.target.value });
+                          }}
                           placeholder="যেমন: ধানমন্ডি"
                           className="w-full px-2.5 py-2 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white text-xs outline-none"
                         />
@@ -339,7 +558,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <input
                           type="text"
                           value={postalCode}
-                          onChange={(e) => setPostalCode(e.target.value)}
+                          onChange={(e) => {
+                            setPostalCode(e.target.value);
+                            persistCustomerInfo({ postalCode: e.target.value });
+                          }}
                           placeholder="১২০৯"
                           className="w-full px-2.5 py-2 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white text-xs outline-none"
                         />
@@ -409,33 +631,75 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                   {/* Order Financials Summary */}
                   <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200 space-y-2 text-xs">
-                    <span className="font-bold text-zinc-900 block pb-1 border-b border-zinc-200">
-                      অর্ডার সামারি ({toBengaliNumber(cart.length)} টি বই)
-                    </span>
-                    <div className="flex justify-between text-zinc-600">
-                      <span>সাবটোটাল</span>
-                      <span className="font-semibold text-zinc-900">{formatPrice(subtotal)}</span>
+                    <div className="flex items-center justify-between pb-1.5 border-b border-zinc-200">
+                      <span className="font-bold text-zinc-900">
+                        {isDirectBuy ? 'নির্বাচিত বই' : 'অর্ডার সামারি'} ({toBengaliNumber(activeItems.length)} টি)
+                      </span>
+                      {isDirectBuy && (
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                          সরাসরি ক্রয়
+                        </span>
+                      )}
                     </div>
-                    {discountAmount > 0 && (
+
+                    {/* Book Items List in Checkout */}
+                    <div className="max-h-36 overflow-y-auto space-y-2 py-1 pr-1 border-b border-zinc-200">
+                      {activeItems.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <img
+                              src={item.book.cover_image || item.book.image || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=400&h=560&q=80'}
+                              alt={item.book.title}
+                              className="w-8 h-10 object-cover rounded border border-zinc-200 shrink-0 bg-white"
+                            />
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-zinc-900 text-[11px] truncate leading-tight">
+                                {item.book.title}
+                              </h4>
+                              <p className="text-[10px] text-zinc-500 truncate mt-0.5">
+                                {item.book.author}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono text-zinc-900 font-bold block text-xs">
+                              {formatPrice((Number(item.book.price) || 0) * (item.quantity || 1))}
+                            </span>
+                            <span className="text-[10px] text-zinc-400">
+                              {toBengaliNumber(item.quantity)} টি × {formatPrice(item.book.price)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-between text-zinc-600 pt-1">
+                      <span>সাবটোটাল</span>
+                      <span className="font-semibold text-zinc-900">{formatPrice(activeSubtotal)}</span>
+                    </div>
+
+                    {activeDiscountAmount > 0 && (
                       <div className="flex justify-between text-emerald-600 font-semibold">
-                        <span>কুপন ছাড় ({couponCode})</span>
-                        <span>-{formatPrice(discountAmount)}</span>
+                        <span>কুপন ছাড় ({activeCouponCode})</span>
+                        <span>-{formatPrice(activeDiscountAmount)}</span>
                       </div>
                     )}
+
                     <div className="flex justify-between text-zinc-600">
                       <span>ডেলিভারি চার্জ</span>
-                      <span className="font-semibold text-zinc-900">{formatPrice(deliveryFee)}</span>
+                      <span className="font-semibold text-zinc-900">{formatPrice(activeDeliveryFee)}</span>
                     </div>
+
                     <div className="pt-2 border-t border-zinc-200 flex justify-between text-sm font-extrabold text-zinc-950">
                       <span>সর্বমোট</span>
-                      <span className="text-amber-800 text-base">{formatPrice(grandTotal)}</span>
+                      <span className="text-amber-800 text-base">{formatPrice(activeGrandTotal)}</span>
                     </div>
                   </div>
 
                   {/* Submit Button */}
                   <button
                     type="submit"
-                    disabled={isSubmitting || cart.length === 0}
+                    disabled={isSubmitting || activeItems.length === 0}
                     className="w-full py-3.5 px-4 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-zinc-950 font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer disabled:opacity-50 active:scale-98"
                   >
                     {isSubmitting ? (

@@ -9,12 +9,14 @@ interface ProductCarouselProps {
   books: Book[];
   onOpenDetails: (book: Book) => void;
   onQuickView: (book: Book) => void;
+  onBuyNow?: (book: Book) => void;
 }
 
 export const ProductCarousel: React.FC<ProductCarouselProps> = ({
   books,
   onOpenDetails,
   onQuickView,
+  onBuyNow,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +64,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({
               book={book}
               onOpenDetails={onOpenDetails}
               onQuickView={onQuickView}
+              onBuyNow={onBuyNow}
               isHighlighted={idx === 0 || idx === 5}
             />
           </div>

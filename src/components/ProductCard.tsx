@@ -11,6 +11,7 @@ interface ProductCardProps {
   book: Book;
   onOpenDetails: (book: Book) => void;
   onQuickView: (book: Book) => void;
+  onBuyNow?: (book: Book) => void;
   isHighlighted?: boolean;
 }
 
@@ -18,6 +19,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   book,
   onOpenDetails,
   onQuickView,
+  onBuyNow,
 }) => {
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
@@ -75,19 +77,31 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           loading="lazy"
         />
 
-        {/* Quick View Button on Desktop Hover */}
-        <div className="absolute inset-0 bg-black/15 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center pointer-events-none">
+        {/* Quick View and Buy Now Buttons on Desktop Hover */}
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center gap-1.5 pointer-events-none p-2">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onQuickView(book);
             }}
-            className="pointer-events-auto bg-white hover:bg-[#E5A913] text-zinc-900 font-bold px-3 py-1.5 rounded-full text-xs shadow-md transition-all flex items-center gap-1 cursor-pointer transform -translate-y-2 group-hover:translate-y-0"
+            className="pointer-events-auto bg-white hover:bg-[#E5A913] text-zinc-900 font-bold px-2.5 py-1.5 rounded-full text-xs shadow-md transition-all flex items-center gap-1 cursor-pointer transform -translate-y-2 group-hover:translate-y-0"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>একনজরে</span>
           </button>
+          {onBuyNow && book.stock > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onBuyNow(book);
+              }}
+              className="pointer-events-auto bg-[#18181B] hover:bg-zinc-800 text-white font-bold px-2.5 py-1.5 rounded-full text-xs shadow-md transition-all flex items-center gap-1 cursor-pointer transform -translate-y-2 group-hover:translate-y-0"
+            >
+              <span>এখনই কিনুন</span>
+            </button>
+          )}
         </div>
       </div>
 

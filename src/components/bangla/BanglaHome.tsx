@@ -8,6 +8,7 @@ import { ProductCarousel } from '../ProductCarousel';
 import { Book } from '../../types';
 import { Gift } from 'lucide-react';
 import { matchesCategory } from '../../utils/filterUtils';
+import { useData } from '../../context/DataContext';
 
 interface BanglaHomeProps {
   books: Book[];
@@ -65,6 +66,13 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
     [books]
   );
 
+  const { banners } = useData();
+  const promoBanner = useMemo(() => {
+    return (banners || []).find(
+      (b) => (b.placement === 'homepage_promo' || b.type === 'homepage_promo') && b.is_active !== false
+    );
+  }, [banners]);
+
   return (
     <div className="space-y-6 sm:space-y-10 font-['Noto_Sans_Bengali']">
       {/* Hero Section with interactive multi-slide carousel */}
@@ -90,6 +98,7 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
           books={discountedBooks}
           onOpenDetails={onOpenDetails}
           onQuickView={onQuickView}
+          onBuyNow={onBuyNow}
         />
       </section>
 
@@ -104,34 +113,51 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
           books={bestsellerBooks}
           onOpenDetails={onOpenDetails}
           onQuickView={onQuickView}
+          onBuyNow={onBuyNow}
         />
       </section>
 
       {/* Mid-Page Promotional Banner: বইমেলা বিশেষ কুপন */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 my-4">
-        <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-r from-[#1B1910] via-[#282419] to-[#1B1910] border border-[#3A3423] p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
-          <div className="space-y-2 text-center md:text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E5A913] text-zinc-950 text-xs font-black">
-              <Gift className="w-3.5 h-3.5" />
-              <span>বিশেষ সুযোগ</span>
+      {(promoBanner || (!banners || banners.length === 0)) && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 my-4">
+          <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-r from-[#1B1910] via-[#282419] to-[#1B1910] border border-[#3A3423] p-6 sm:p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
+            <div className="space-y-2 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E5A913] text-zinc-950 text-xs font-black">
+                <Gift className="w-3.5 h-3.5" />
+                <span>{promoBanner?.badge || 'বিশেষ সুযোগ'}</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white">
+                {promoBanner?.title || 'যেকোনো ৩টি বই কিনলেই সারা দেশে ফ্রি হোম ডেলিভারি!'}
+              </h3>
+              <p className="text-xs sm:text-sm text-zinc-300">
+                {promoBanner?.subtitle ? (
+                  <span>{promoBanner.subtitle}</span>
+                ) : (
+                  <>চেকআউটে কুপন কোড ব্যবহার করুন: <strong className="text-[#E5A913] font-bold">{promoBanner?.highlight_text || 'SHESHER10'}</strong></>
+                )}
+              </p>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black text-white">
-              যেকোনো ৩টি বই কিনলেই সারা দেশে ফ্রি হোম ডেলিভারি!
-            </h3>
-            <p className="text-xs sm:text-sm text-zinc-300">
-              চেকআউটে কুপন কোড ব্যবহার করুন: <strong className="text-[#E5A913] font-bold">SHESHER10</strong>
-            </p>
-          </div>
 
-          <button
-            type="button"
-            onClick={onExploreClick}
-            className="px-6 py-3 rounded-xl bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer shrink-0 active:scale-95"
-          >
-            অফার উপভোগ করুন ➔
-          </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (promoBanner?.primary_button_url && promoBanner.primary_button_url !== 'books') {
+                  if (promoBanner.primary_button_url.startsWith('/') || promoBanner.primary_button_url.startsWith('http')) {
+                    window.location.href = promoBanner.primary_button_url;
+                  } else {
+                    window.location.href = `/?category=${encodeURIComponent(promoBanner.primary_button_url)}`;
+                  }
+                } else {
+                  onExploreClick();
+                }
+              }}
+              className="px-6 py-3 rounded-xl bg-[#E5A913] hover:bg-[#D99600] text-zinc-950 font-bold text-xs sm:text-sm shadow-sm transition-all cursor-pointer shrink-0 active:scale-95"
+            >
+              {promoBanner?.primary_button_text || 'অফার উপভোগ করুন ➔'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Section 3: নতুন প্রকাশনা (New Releases) */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -144,6 +170,7 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
           books={newReleaseBooks}
           onOpenDetails={onOpenDetails}
           onQuickView={onQuickView}
+          onBuyNow={onBuyNow}
         />
       </section>
 
@@ -158,6 +185,7 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
           books={juvenileAndMysteryBooks}
           onOpenDetails={onOpenDetails}
           onQuickView={onQuickView}
+          onBuyNow={onBuyNow}
         />
       </section>
 
@@ -172,6 +200,7 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
           books={classicAndNovelBooks}
           onOpenDetails={onOpenDetails}
           onQuickView={onQuickView}
+          onBuyNow={onBuyNow}
         />
       </section>
 

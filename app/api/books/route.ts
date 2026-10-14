@@ -9,7 +9,7 @@ export const revalidate = 0;
 /**
  * GET /api/books
  * Public endpoint to fetch all books from the central Supabase database.
- * Auto-seeds default books if the table is empty.
+ * Strictly read-only: never modifies, seeds, or deletes database records.
  * First-party endpoint ensures no ad-blockers block client-side requests.
  */
 export async function GET(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.warn('[API /api/books] Supabase fetch error:', error.message);
       return NextResponse.json({
-        success: true,
+        success: false,
         books: INITIAL_BOOKS,
         count: INITIAL_BOOKS.length,
         fallback: true,
@@ -42,43 +42,12 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 2. If table is completely empty, auto-seed with INITIAL_BOOKS
-    if (!data || data.length === 0) {
-      try {
-        const rows = INITIAL_BOOKS.map(bookToRow);
-        for (let i = 0; i < rows.length; i += 20) {
-          const chunk = rows.slice(i, i + 20);
-          await supabase.from('books').upsert(chunk, { onConflict: 'id' });
-        }
-        return NextResponse.json(
-          {
-            success: true,
-            books: INITIAL_BOOKS,
-            count: INITIAL_BOOKS.length,
-            autoSeeded: true,
-          },
-          {
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-            },
-          }
-        );
-      } catch (seedErr) {
-        console.warn('[API /api/books] Auto-seed error:', seedErr);
-        return NextResponse.json({
-          success: true,
-          books: INITIAL_BOOKS,
-          count: INITIAL_BOOKS.length,
-          fallback: true,
-        });
-      }
-    }
-
+    // Return exact production database records without ever modifying or auto-seeding
     return NextResponse.json(
       {
         success: true,
-        books: data,
-        count: data.length,
+        books: data || [],
+        count: (data || []).length,
       },
       {
         headers: {

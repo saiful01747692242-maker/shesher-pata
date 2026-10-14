@@ -1,31 +1,45 @@
 import { MetadataRoute } from 'next';
 import { getServerSupabaseClient } from '../src/lib/serverSupabase';
 import { BOOKS } from '../src/data/books';
+import { getBookSlug } from '../src/utils/bookUrl';
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\/+$/, '');
 
-  let bookIds: string[] = BOOKS.map((b) => b.id);
+  interface SitemapBookEntry {
+    slug: string;
+    updatedAt: Date;
+  }
+
+  let bookEntries: SitemapBookEntry[] = BOOKS.map((b) => ({
+    slug: getBookSlug(b),
+    updatedAt: new Date(),
+  }));
 
   const supabase = getServerSupabaseClient();
   if (supabase) {
     try {
       const { data } = await supabase
         .from('books')
-        .select('id, updated_at')
+        .select('id, slug, title, english_name, is_active, updated_at')
         .eq('is_active', true)
-        .limit(200);
+        .order('updated_at', { ascending: false })
+        .limit(500);
 
       if (data && data.length > 0) {
-        bookIds = data.map((b) => b.id);
+        bookEntries = data.map((b) => ({
+          slug: getBookSlug(b),
+          updatedAt: b.updated_at ? new Date(b.updated_at) : new Date(),
+        }));
       }
     } catch {
-      // Fallback to static IDs
+      // Fallback to static books
     }
   }
 
-  const bookUrls: MetadataRoute.Sitemap = bookIds.map((id) => ({
-    url: `${baseUrl}/book/${id}`,
-    lastModified: new Date(),
+  const bookUrls: MetadataRoute.Sitemap = bookEntries.map((entry) => ({
+    url: `${baseUrl}/book/${encodeURIComponent(entry.slug)}`,
+    lastModified: entry.updatedAt,
     changeFrequency: 'weekly',
     priority: 0.8,
   }));

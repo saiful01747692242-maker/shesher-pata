@@ -4,6 +4,7 @@ export interface Book {
   title_bn?: string;
   bangla_name?: string;
   english_name?: string;
+  slug?: string;
   author: string;
   publisher: string;
   category: string;
@@ -41,19 +42,61 @@ export interface Book {
 
 export interface Banner {
   id: string;
-  bangla_image: string;
-  english_image: string;
+  name: string;
+  type?: string;
+  placement?: string; // 'homepage_hero' | 'homepage_promo' | 'category' | 'campaign' | 'custom'
   title: string;
-  english_title?: string;
   subtitle?: string;
+  description?: string;
+  badge?: string;
+  badge_color?: string;
+  image_url?: string;
+  mobile_image_url?: string;
+  primary_button_text?: string;
+  primary_button_url?: string;
+  secondary_button_text?: string;
+  secondary_button_url?: string;
+  highlight_text?: string;
+  theme?: 'cream' | 'dark' | 'amber' | string;
+  display_order: number;
+  is_active: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  target_url?: string;
+  open_in_new_tab?: boolean;
+  alt_text?: string;
+  design_config?: any;
+  // Legacy compatibility fields
+  bangla_image?: string;
+  english_image?: string;
+  english_title?: string;
   english_subtitle?: string;
   link?: string;
-  badge?: string;
-  status: 'active' | 'inactive';
-  sort_order: number;
+  status?: 'active' | 'inactive';
+  sort_order?: number;
   created_at?: string;
   updated_at?: string;
 }
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discount_type: 'percentage' | 'fixed' | 'free_shipping';
+  discount_value: number;
+  minimum_order_amount?: number;
+  maximum_discount_amount?: number | null;
+  usage_limit?: number | null;
+  used_count: number;
+  per_user_limit?: number | null;
+  starts_at?: string | null;
+  expires_at?: string | null;
+  description?: string;
+  applicable_to?: 'all' | 'category' | 'books';
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 
 export interface Category {
   id: string;
@@ -61,6 +104,7 @@ export interface Category {
   bangla_name?: string;
   englishName: string;
   english_name?: string;
+  slug?: string;
   iconName: string;
   imageUrl: string;
   image?: string;
@@ -100,9 +144,11 @@ export interface CartItem {
 export interface OrderDetails {
   orderId: string;
   date: string;
+  created_at?: string;
   customerName: string;
   phone: string;
   email: string;
+  userId?: string;
   address: string;
   district: string;
   thana: string;
@@ -158,5 +204,19 @@ export interface UserProfile {
   email: string;
   phone?: string;
   created_at?: string;
+  updated_at?: string;
+}
+
+export interface BookReview {
+  id: string;
+  book_id: string;
+  user_id?: string;
+  user_name: string;
+  user_email?: string;
+  rating: number;
+  review_text: string;
+  is_verified_purchase: boolean;
+  order_id?: string;
+  created_at: string;
   updated_at?: string;
 }

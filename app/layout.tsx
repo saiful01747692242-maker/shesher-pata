@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Noto_Sans_Bengali } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from '../src/context/AppProviders';
+import { WhatsAppFloatingButton } from '../src/components/WhatsAppFloatingButton';
 
 const notoSansBengali = Noto_Sans_Bengali({
   subsets: ['bengali'],
@@ -11,6 +12,7 @@ const notoSansBengali = Noto_Sans_Bengali({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://shesherpata.com'),
   title: 'শেষের পাতা — অনলাইন বইয়ের দোকান | Shesher Pata Online Bookshop',
   description: 'শেষের পাতা - বাংলাদেশের সর্বাধিক বিশ্বস্ত অনলাইন বইয়ের দোকান। রবীন্দ্রনাথ, নজরুল, হুমায়ূন আহমেদ, ফেলুদা সহ সকল সেরা লেখকের ক্লাসিক ও নতুন বই কিনুন সেরা অফারে।',
   keywords: [
@@ -27,17 +29,21 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Shesher Pata' }],
   creator: 'Shesher Pata Team',
+  alternates: {
+    canonical: 'https://shesherpata.com',
+  },
   openGraph: {
     title: 'শেষের পাতা — আপনার পছন্দের সেরা বাংলা বইয়ের সংগ্রহ',
     description: 'দেশি-বিদেশি অমর সাহিত্যকর্ম ও সাম্প্রতিক প্রকাশনা সরাসরি আপনার ঠিকানায়। হোম ডেলিভারি ও ক্যাশ অন ডেলিভারি সুবিধা!',
     url: 'https://shesherpata.com',
-    siteName: 'Shesher Pata',
+    siteName: 'শেষের পাতা | Shesher Pata',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80',
+        url: 'https://shesherpata.com/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Shesher Pata Book Store',
+        alt: 'শেষের পাতা — অনলাইন বইয়ের দোকান | Shesher Pata',
+        type: 'image/png',
       },
     ],
     locale: 'bn_BD',
@@ -46,8 +52,8 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'শেষের পাতা — অনলাইন বইয়ের দোকান',
-    description: 'শতভাগ আসল ও মানসম্মত বাংলা বই কিনুন আকর্ষণীয় ছাড়ে।',
-    images: ['https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80'],
+    description: 'শতভাগ আসল ও মানসম্মত বাংলা বই কিনুন আকর্ষণীয় ছাড়ে। সারাদেশে ক্যাশ অন ডেলিভারি!',
+    images: ['https://shesherpata.com/og-image.png'],
   },
   robots: {
     index: true,
@@ -68,6 +74,7 @@ export default function RootLayout({
       >
         <AppProviders>
           {children}
+          <WhatsAppFloatingButton />
         </AppProviders>
       </body>
     </html>

@@ -5,67 +5,193 @@ import { BOOKS } from '../../../src/data/books';
 import { Book } from '../../../src/types';
 import { getServerSupabaseClient } from '../../../src/lib/serverSupabase';
 import { rowToBook } from '../../../src/services/bookService';
+import { getBookSlug, getBookUrl } from '../../../src/utils/bookUrl';
 import BookDetailClient from './BookDetailClient';
+
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\/+$/, '');
+const FALLBACK_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-async function fetchBook(id: string): Promise<Book | null> {
+/**
+ * Robustly resolve a book's cover image to an absolute, publicly accessible HTTPS URL.
+ * Priority:
+ * 1. book.cover_image
+ * 2. book.image
+ * 3. Supabase Storage public URL
+ * 4. Branded fallback OG image
+ */
+function resolveBookOgImage(book: Book | null): string {
+  if (!book) return FALLBACK_OG_IMAGE;
+
+  const raw = (book.cover_image || book.image || '').trim();
+  if (!raw) return FALLBACK_OG_IMAGE;
+
+  // Already absolute HTTPS URL
+  if (raw.startsWith('https://')) return raw;
+
+  // Upgrade HTTP to HTTPS
+  if (raw.startsWith('http://')) return raw.replace(/^http:\/\//i, 'https://');
+
+  // Relative public asset path
+  if (raw.startsWith('/')) return `${SITE_URL}${raw}`;
+  if (raw.startsWith('images/')) return `${SITE_URL}/${raw}`;
+
+  // Supabase Storage path
+  const supabaseUrl = (
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tbgtvrveyjuupqbcldya.supabase.co'
+  ).replace(/\/+$/, '');
+  const cleanPath = raw.replace(/^book-covers\//, '');
+  return `${supabaseUrl}/storage/v1/object/public/book-covers/${cleanPath}`;
+}
+
+function getBookDescription(book: Book): string {
+  if (book.description && book.description.trim().length > 20) {
+    const clean = book.description.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    if (clean.length > 160) {
+      return `${clean.substring(0, 157)}...`;
+    }
+    return clean;
+  }
+  const parts = [`"${book.title}" — লেখক: ${book.author}`];
+  if (book.category) parts.push(`বিভাগ: ${book.category}`);
+  if (book.publisher) parts.push(`প্রকাশক: ${book.publisher}`);
+  if (book.price) parts.push(`মূল্য: ৳${book.price}`);
+  parts.push('আজই অর্ডার করুন শেষের পাতা অনলাইন বুকশপে।');
+  return parts.join(' • ');
+}
+
+async function fetchBook(identifier: string): Promise<Book | null> {
+  const decoded = decodeURIComponent(identifier || '').trim();
+  if (!decoded) return null;
+
   const supabase = getServerSupabaseClient();
   if (supabase) {
     try {
+      // 1. Exact match on slug or id
       const { data, error } = await supabase
         .from('books')
         .select('*')
-        .eq('id', id)
+        .or(`slug.eq.${decoded},id.eq.${decoded}`)
         .maybeSingle();
 
-      if (!error) {
-        if (data) return rowToBook(data);
-        // Explicitly not found in central database (e.g. deleted by admin)
-        return null;
+      if (!error && data) {
+        return rowToBook(data);
+      }
+
+      // 2. Trailing candidate ID extraction (e.g. boi-er-naam-123 or name-bb-book-01)
+      const lastHyphen = decoded.lastIndexOf('-');
+      if (lastHyphen > 0) {
+        const candidateId = decoded.substring(lastHyphen + 1).trim();
+        if (candidateId) {
+          const { data: byCandidate, error: candErr } = await supabase
+            .from('books')
+            .select('*')
+            .eq('id', candidateId)
+            .maybeSingle();
+
+          if (!candErr && byCandidate) {
+            return rowToBook(byCandidate);
+          }
+        }
       }
     } catch (err) {
-      console.warn(`[BookPage] Supabase fetch error for id ${id}:`, err);
+      console.warn(`[BookPage] Supabase fetch error for identifier ${decoded}:`, err);
     }
   }
 
-  // Fallback to static catalog only if Supabase client is completely unavailable/offline
-  return BOOKS.find((b) => b.id === id) || null;
+  // Fallback to static catalog if Supabase offline or not matched
+  return (
+    BOOKS.find(
+      (b) =>
+        b.slug === decoded ||
+        b.id === decoded ||
+        getBookSlug(b) === decoded ||
+        decoded.endsWith('-' + b.id)
+    ) || null
+  );
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const book = await fetchBook(id);
+  const decoded = decodeURIComponent(id || '').trim();
+  const book = await fetchBook(decoded);
 
   if (!book) {
     return {
       title: 'বইয়ের বিবরণ — শেষের পাতা',
+      description: 'অনলাইন বইয়ের দোকান শেষের পাতা থেকে সেরা ছাড়ে আসল বাংলা বই কিনুন।',
+      alternates: {
+        canonical: `${SITE_URL}/book/${encodeURIComponent(decoded)}`,
+      },
+      openGraph: {
+        title: 'বইয়ের বিবরণ — শেষের পাতা',
+        description: 'অনলাইন বইয়ের দোকান শেষের পাতা থেকে সেরা ছাড়ে আসল বাংলা বই কিনুন।',
+        url: `${SITE_URL}/book/${encodeURIComponent(decoded)}`,
+        siteName: 'শেষের পাতা | Shesher Pata',
+        images: [
+          {
+            url: FALLBACK_OG_IMAGE,
+            width: 1200,
+            height: 630,
+            alt: 'শেষের পাতা — অনলাইন বইয়ের দোকান',
+            type: 'image/png',
+          },
+        ],
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: 'বইয়ের বিবরণ — শেষের পাতা',
+        description: 'অনলাইন বইয়ের দোকান শেষের পাতা থেকে সেরা ছাড়ে আসল বাংলা বই কিনুন।',
+        images: [FALLBACK_OG_IMAGE],
+      },
     };
   }
 
+  const pageUrl = getBookUrl(book, SITE_URL);
+  const ogImageUrl = resolveBookOgImage(book);
+  const title = `${book.title} — ${book.author} | শেষের পাতা`;
+  const description = getBookDescription(book);
+
   return {
-    title: `${book.title} — ${book.author} | শেষের পাতা`,
-    description: (book.description || '').substring(0, 160),
+    title,
+    description,
+    alternates: {
+      canonical: pageUrl,
+    },
     openGraph: {
-      title: `${book.title} — ${book.author}`,
-      description: book.description || '',
+      title,
+      description,
+      url: pageUrl,
+      siteName: 'শেষের পাতা | Shesher Pata',
+      locale: 'bn_BD',
+      type: 'book',
       images: [
         {
-          url: book.image || book.cover_image || '',
+          url: ogImageUrl,
           width: 800,
-          height: 1000,
-          alt: book.title,
+          height: 1100,
+          alt: `${book.title} — ${book.author}`,
+          type: ogImageUrl.endsWith('.png') ? 'image/png' : 'image/jpeg',
         },
       ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [ogImageUrl],
     },
   };
 }
 
 export default async function BookPage({ params }: PageProps) {
   const { id } = await params;
-  const book = await fetchBook(id);
+  const decoded = decodeURIComponent(id || '').trim();
+  const book = await fetchBook(decoded);
 
   if (!book) {
     notFound();
@@ -85,11 +211,15 @@ export default async function BookPage({ params }: PageProps) {
     }
   }
 
+  const bookImageUrl = resolveBookOgImage(book);
+  const bookPageUrl = getBookUrl(book, SITE_URL);
+
   // JSON-LD structured data for Google Books Rich Snippets
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Book',
     name: book.title,
+    url: bookPageUrl,
     author: {
       '@type': 'Person',
       name: book.author,
@@ -98,13 +228,14 @@ export default async function BookPage({ params }: PageProps) {
       '@type': 'Organization',
       name: book.publisher,
     },
-    image: book.image || book.cover_image,
+    image: bookImageUrl,
     isbn: book.isbn,
     offers: {
       '@type': 'Offer',
       priceCurrency: 'BDT',
       price: book.price,
       availability: book.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      url: bookPageUrl,
     },
   };
 

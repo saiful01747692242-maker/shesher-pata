@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Book } from '../../../src/types';
+import { Book, CartItem } from '../../../src/types';
 import { Header } from '../../../src/components/Header';
 import { Footer } from '../../../src/components/Footer';
 import { ProductDetailsModal } from '../../../src/components/ProductDetailsModal';
@@ -15,6 +15,7 @@ import { useToast } from '../../../src/context/ToastContext';
 import { useRouter } from 'next/navigation';
 import { trackSearch } from '../../../src/utils/metaPixel';
 import { useData } from '../../../src/context/DataContext';
+import { getBookSlug } from '../../../src/utils/bookUrl';
 
 interface BookDetailClientProps {
   book: Book;
@@ -32,6 +33,7 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
   const liveAllBooks = books && books.length > 0 ? books : allBooks;
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [buyNowItem, setBuyNowItem] = useState<CartItem | null>(null);
   const [isTrackOrderOpen, setIsTrackOrderOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
 
@@ -50,21 +52,45 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
           if (query?.trim()) trackSearch(query.trim());
           router.push('/');
         }}
-        onSelectBook={(selectedBook) => router.push(`/book/${selectedBook.id}`)}
+        onSelectBook={(selectedBook) => router.push(`/book/${getBookSlug(selectedBook)}`)}
         onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
         onOpenAccount={() => setIsAccountOpen(true)}
       />
 
-      <main className="flex-1 py-8">
+      <main className="flex-1 py-4 sm:py-8">
         <ProductDetailsModal
           book={liveBook}
           allBooks={liveAllBooks}
+          isPage={true}
           onClose={() => router.push('/')}
-          onSelectBook={(b) => router.push(`/book/${b.id}`)}
+          onSelectBook={(b) => router.push(`/book/${getBookSlug(b)}`)}
           onBuyNow={(b, qty) => {
-            addToCart(b, qty);
-            setIsCheckoutOpen(true);
+            if (!b || !b.id || b.stock <= 0) {
+              showToast('দুঃখিত! বইটি বর্তমানে স্টকে নেই।', 'error');
+              return;
+            }
+            const item: CartItem = {
+              book: {
+                ...b,
+                id: b.id,
+                price: Number(b.price) || 0,
+                originalPrice: Number(b.originalPrice) || Number(b.price) || 0,
+                title: b.title,
+                author: b.author || '',
+                cover_image: b.cover_image || b.image || '',
+                image: b.image || b.cover_image || '',
+                stock: b.stock,
+              },
+              quantity: Math.max(1, Math.min(qty || 1, b.stock || 1)),
+            };
+            try {
+              sessionStorage.setItem('shesher_pata_buy_now', JSON.stringify(item));
+            } catch (err) {
+              console.error('[BookDetailClient] Failed to persist Buy Now session:', err);
+            }
+            router.push('/checkout');
           }}
+          onOpenAccount={() => setIsAccountOpen(true)}
         />
       </main>
 
@@ -74,19 +100,39 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
       />
 
       <CartDrawer
-        onProceedToCheckout={() => setIsCheckoutOpen(true)}
+        onProceedToCheckout={() => {
+          setBuyNowItem(null);
+          try {
+            sessionStorage.removeItem('shesher_pata_buy_now');
+          } catch {}
+          router.push('/checkout');
+        }}
         onExploreBooks={() => router.push('/')}
       />
 
       <WishlistDrawer
         onExploreBooks={() => router.push('/')}
-        onOpenDetails={(b) => router.push(`/book/${b.id}`)}
+        onOpenDetails={(b) => router.push(`/book/${getBookSlug(b)}`)}
       />
 
       <CheckoutModal
         isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        onOrderSuccess={() => showToast('আপনার অর্ডারটি গ্রহণ করা হয়েছে!', 'success')}
+        directItem={buyNowItem}
+        onClose={() => {
+          setIsCheckoutOpen(false);
+          setBuyNowItem(null);
+          try {
+            sessionStorage.removeItem('shesher_pata_buy_now');
+          } catch {}
+        }}
+        onOrderSuccess={() => {
+          setIsCheckoutOpen(false);
+          setBuyNowItem(null);
+          try {
+            sessionStorage.removeItem('shesher_pata_buy_now');
+          } catch {}
+          showToast('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে!', 'success');
+        }}
       />
 
       <TrackOrderModal

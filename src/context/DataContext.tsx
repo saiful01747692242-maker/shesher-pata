@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Book, Banner, Category, Author, Publisher, OrderDetails, SiteSettings } from '../types';
+import { Book, Banner, Category, Author, Publisher, OrderDetails, SiteSettings, Coupon } from '../types';
 import { BOOKS as INITIAL_BOOKS } from '../data/books';
 import { CATEGORIES as INITIAL_CATEGORIES } from '../data/categories';
 import { INITIAL_BANNERS } from '../data/banners';
@@ -10,7 +10,10 @@ import { bookService, BOOKS_CHANGED_EVENT, BulkImportResult } from '../services/
 import { categoryService } from '../services/categoryService';
 import { authorService } from '../services/authorService';
 import { publisherService } from '../services/publisherService';
-import { normalizeBengali, matchesCategory } from '../utils/filterUtils';
+import { bannerService } from '../services/bannerService';
+import { couponService } from '../services/couponService';
+import { orderService } from '../services/orderService';
+import { normalizeBengali, matchesCategory, getCategoryDisplayName } from '../utils/filterUtils';
 
 const INITIAL_AUTHORS: Author[] = [
   {
@@ -211,6 +214,7 @@ const INITIAL_ORDERS: OrderDetails[] = [
 interface DataContextType {
   books: Book[];
   banners: Banner[];
+  coupons: Coupon[];
   categories: Category[];
   authors: Author[];
   publishers: Publisher[];
@@ -224,9 +228,17 @@ interface DataContextType {
   syncBooksWithSupabase: () => Promise<{ success: boolean; count?: number; message: string }>;
 
   // Banner Actions
-  addBanner: (banner: Omit<Banner, 'id'> & { id?: string }) => Banner;
-  updateBanner: (id: string, updated: Partial<Banner>) => void;
-  deleteBanner: (id: string) => void;
+  addBanner: (banner: Partial<Banner>) => Promise<Banner>;
+  updateBanner: (id: string, updated: Partial<Banner>) => Promise<Banner>;
+  deleteBanner: (id: string) => Promise<boolean>;
+  duplicateBanner: (banner: Banner) => Promise<Banner>;
+  refreshBanners: () => Promise<void>;
+
+  // Coupon Actions
+  addCoupon: (coupon: Partial<Coupon>) => Promise<Coupon>;
+  updateCoupon: (id: string, updated: Partial<Coupon>) => Promise<Coupon>;
+  deleteCoupon: (id: string) => Promise<boolean>;
+  refreshCoupons: () => Promise<void>;
 
   // Category Actions
   addCategory: (category: Omit<Category, 'id'> & { id?: string }) => Promise<Category>;
@@ -244,10 +256,12 @@ interface DataContextType {
   deletePublisher: (id: string) => void;
 
   // Order Actions
+  isOrdersLoading: boolean;
+  refreshOrders: () => Promise<OrderDetails[]>;
   addOrder: (order: OrderDetails) => void;
-  updateOrder: (orderId: string, updated: Partial<OrderDetails>) => void;
-  updateOrderStatus: (orderId: string, status: OrderDetails['status']) => void;
-  deleteOrder: (orderId: string) => void;
+  updateOrder: (orderId: string, updated: Partial<OrderDetails>) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: OrderDetails['status']) => Promise<void>;
+  deleteOrder: (orderId: string) => Promise<void>;
 
   // Site Settings
   siteSettings: SiteSettings;
@@ -274,11 +288,16 @@ const STORAGE_KEYS = {
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [books, setBooks] = useState<Book[]>(() => bookService.getCachedBooks());
   const [isBooksLoading, setIsBooksLoading] = useState<boolean>(true);
-  const [banners, setBanners] = useState<Banner[]>(INITIAL_BANNERS);
+  const [banners, setBanners] = useState<Banner[]>(() => {
+    const cached = bannerService.getCachedBanners();
+    return cached.length > 0 ? cached : INITIAL_BANNERS;
+  });
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [categories, setCategories] = useState<Category[]>(() => categoryService.getCachedCategories());
   const [authors, setAuthors] = useState<Author[]>(() => authorService.getCachedAuthors(INITIAL_AUTHORS));
   const [publishers, setPublishers] = useState<Publisher[]>(() => publisherService.getCachedPublishers(INITIAL_PUBLISHERS));
-  const [orders, setOrders] = useState<OrderDetails[]>(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<OrderDetails[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState<boolean>(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -303,10 +322,19 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setIsBooksLoading(false);
         });
 
-      const storedBanners = localStorage.getItem(STORAGE_KEYS.BANNERS);
-      if (storedBanners) {
-        setBanners(JSON.parse(storedBanners));
-      }
+      // Load banners from database
+      bannerService.fetchBanners().then((remoteBanners) => {
+        if (remoteBanners && remoteBanners.length > 0) {
+          setBanners(remoteBanners);
+        }
+      });
+
+      // Load coupons from database
+      couponService.fetchAdminCoupons().then((remoteCoupons) => {
+        if (Array.isArray(remoteCoupons)) {
+          setCoupons(remoteCoupons);
+        }
+      }).catch(() => {});
 
       // Load cached categories/authors and fetch latest from server
       const storedCategories = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
@@ -356,8 +384,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const storedOrders = localStorage.getItem(STORAGE_KEYS.ORDERS);
       if (storedOrders) {
-        setOrders(JSON.parse(storedOrders));
+        try {
+          const parsed = JSON.parse(storedOrders);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setOrders(parsed);
+          }
+        } catch {}
       }
+
+      // Fetch live orders from Supabase (accessible when authenticated as admin)
+      orderService.fetchAdminOrders().then((remoteOrders) => {
+        if (Array.isArray(remoteOrders) && remoteOrders.length >= 0) {
+          setOrders(remoteOrders);
+          try {
+            localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(remoteOrders));
+          } catch {}
+        }
+      }).catch(() => {});
 
       // Initial cached settings
       setSiteSettings(settingsService.getCachedSettings());
@@ -488,7 +531,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       english_name: englishName,
       author: normalizeBengali(bookData.author || ''),
       publisher: normalizeBengali(bookData.publisher || 'বাতিঘর'),
-      category: normalizeBengali(bookData.category || 'উপন্যাস'),
+      category: getCategoryDisplayName(bookData.category, categories) || normalizeBengali(bookData.category || 'উপন্যাস'),
       image: bookData.image || bookData.cover_image || '',
       cover_image: bookData.cover_image || bookData.image || '',
       price: Number(bookData.price) || 0,
@@ -507,20 +550,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const savedBook = await bookService.createBook(newBook);
 
     // Update state and cache
+    let updatedBooksList: Book[] = [];
     setBooks((prev) => {
       const next = [savedBook, ...prev.filter((b) => b.id !== savedBook.id)];
+      updatedBooksList = next;
       bookService.saveToCache(next);
       return next;
     });
 
     // Also update category bookCount
     setCategories((prev) =>
-      prev.map((cat) =>
-        matchesCategory(savedBook.category, savedBook.tags, cat.name, prev) ||
-        matchesCategory(savedBook.category, savedBook.tags, cat.id, prev)
-          ? { ...cat, bookCount: (cat.bookCount || 0) + 1 }
-          : cat
-      )
+      prev.map((cat) => ({
+        ...cat,
+        bookCount: (updatedBooksList.length > 0 ? updatedBooksList : [savedBook]).filter(
+          (b) =>
+            matchesCategory(b.category, b.tags, cat.name, prev) ||
+            matchesCategory(b.category, b.tags, cat.id, prev)
+        ).length,
+      }))
     );
 
     return savedBook;
@@ -530,7 +577,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const payload = { ...updated };
     if (payload.author !== undefined) payload.author = normalizeBengali(payload.author);
     if (payload.publisher !== undefined) payload.publisher = normalizeBengali(payload.publisher);
-    if (payload.category !== undefined) payload.category = normalizeBengali(payload.category);
+    if (payload.category !== undefined) {
+      payload.category = getCategoryDisplayName(payload.category, categories) || normalizeBengali(payload.category);
+    }
     if (payload.title !== undefined) payload.title = normalizeBengali(payload.title);
     if (payload.image !== undefined && payload.cover_image === undefined) {
       payload.cover_image = payload.image;
@@ -539,11 +588,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     const savedBook = await bookService.updateBook(id, payload);
 
+    let updatedBooksList: Book[] = [];
     setBooks((prev) => {
       const next = prev.map((b) => (b.id === id ? { ...b, ...savedBook } : b));
+      updatedBooksList = next;
       bookService.saveToCache(next);
       return next;
     });
+
+    // Also update category bookCount accurately
+    setCategories((prev) =>
+      prev.map((cat) => ({
+        ...cat,
+        bookCount: (updatedBooksList.length > 0 ? updatedBooksList : [savedBook]).filter(
+          (b) =>
+            matchesCategory(b.category, b.tags, cat.name, prev) ||
+            matchesCategory(b.category, b.tags, cat.id, prev)
+        ).length,
+      }))
+    );
 
     return savedBook;
   };
@@ -579,49 +642,93 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const resetBooksToFactoryDefault = async (): Promise<{ success: boolean; count?: number; message: string }> => {
+  // Banner Methods
+  const refreshBanners = async () => {
     try {
-      const res = await fetch('/api/admin/books/seed', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'ফ্যাক্টরি রিস্টোর ব্যর্থ হয়েছে');
+      const fresh = await bannerService.fetchBanners({ admin: true });
+      if (fresh && fresh.length > 0) {
+        setBanners(fresh);
       }
-      const freshBooks = await bookService.fetchBooks();
-      if (Array.isArray(freshBooks)) {
-        setBooks(freshBooks);
-      }
-      return { success: true, count: data.count, message: data.message };
-    } catch (err: any) {
-      return { success: false, message: err.message || 'ফ্যাক্টরি রিস্টোর ব্যর্থ হয়েছে' };
+    } catch (e) {
+      console.warn('Failed to refresh banners:', e);
     }
   };
 
-  // Banner Methods
-  const addBanner = (bannerData: Omit<Banner, 'id'> & { id?: string }): Banner => {
-    const newBanner: Banner = {
+  const addBanner = async (bannerData: Partial<Banner>): Promise<Banner> => {
+    const cleanName = bannerData.name || bannerData.title || 'New Banner';
+    const newBanner = await bannerService.addBanner({
       ...bannerData,
-      id: bannerData.id || `banner-${Date.now()}`,
-      status: bannerData.status || 'active',
-      sort_order: bannerData.sort_order ?? (banners.length + 1),
-      created_at: bannerData.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setBanners((prev) => [...prev, newBanner]);
+      name: cleanName,
+      title: bannerData.title || cleanName,
+      sort_order: bannerData.display_order ?? (banners.length + 1),
+      display_order: bannerData.display_order ?? (banners.length + 1),
+    });
+    setBanners((prev) => {
+      const next = [...prev, newBanner];
+      bannerService.saveToCache(next);
+      return next;
+    });
     return newBanner;
   };
 
-  const updateBanner = (id: string, updated: Partial<Banner>) => {
-    setBanners((prev) =>
-      prev.map((ban) =>
-        ban.id === id
-          ? { ...ban, ...updated, updated_at: new Date().toISOString() }
-          : ban
-      )
-    );
+  const updateBanner = async (id: string, updated: Partial<Banner>): Promise<Banner> => {
+    const saved = await bannerService.updateBanner(id, updated);
+    setBanners((prev) => {
+      const next = prev.map((ban) => (ban.id === id ? { ...ban, ...saved } : ban));
+      bannerService.saveToCache(next);
+      return next;
+    });
+    return saved;
   };
 
-  const deleteBanner = (id: string) => {
-    setBanners((prev) => prev.filter((ban) => ban.id !== id));
+  const deleteBanner = async (id: string): Promise<boolean> => {
+    await bannerService.deleteBanner(id);
+    setBanners((prev) => {
+      const next = prev.filter((ban) => ban.id !== id);
+      bannerService.saveToCache(next);
+      return next;
+    });
+    return true;
+  };
+
+  const duplicateBanner = async (banner: Banner): Promise<Banner> => {
+    const duplicated = await bannerService.duplicateBanner(banner);
+    setBanners((prev) => {
+      const next = [...prev, duplicated];
+      bannerService.saveToCache(next);
+      return next;
+    });
+    return duplicated;
+  };
+
+  // Coupon Methods
+  const refreshCoupons = async () => {
+    try {
+      const fresh = await couponService.fetchAdminCoupons();
+      if (Array.isArray(fresh)) {
+        setCoupons(fresh);
+      }
+    } catch (e) {
+      console.warn('Failed to refresh coupons:', e);
+    }
+  };
+
+  const addCoupon = async (couponData: Partial<Coupon>): Promise<Coupon> => {
+    const created = await couponService.addCoupon(couponData);
+    setCoupons((prev) => [created, ...prev]);
+    return created;
+  };
+
+  const updateCoupon = async (id: string, updated: Partial<Coupon>): Promise<Coupon> => {
+    const saved = await couponService.updateCoupon(id, updated);
+    setCoupons((prev) => prev.map((c) => (c.id === id ? { ...c, ...saved } : c)));
+    return saved;
+  };
+
+  const deleteCoupon = async (id: string): Promise<boolean> => {
+    await couponService.deleteCoupon(id);
+    setCoupons((prev) => prev.filter((c) => c.id !== id));
+    return true;
   };
 
   // Category Methods
@@ -804,24 +911,90 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Order Methods
+  const refreshOrders = async (): Promise<OrderDetails[]> => {
+    setIsOrdersLoading(true);
+    try {
+      const remoteOrders = await orderService.fetchAdminOrders();
+      if (Array.isArray(remoteOrders)) {
+        setOrders(remoteOrders);
+        try {
+          localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(remoteOrders));
+        } catch {}
+        return remoteOrders;
+      }
+      return orders;
+    } catch (err) {
+      console.error('[DataContext] Error refreshing orders:', err);
+      return orders;
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  };
+
   const addOrder = (newOrder: OrderDetails) => {
-    setOrders((prev) => [newOrder, ...prev]);
+    setOrders((prev) => {
+      const exists = prev.some((o) => o.orderId === newOrder.orderId);
+      if (exists) return prev;
+      const next = [newOrder, ...prev];
+      try {
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
-  const updateOrder = (orderId: string, updated: Partial<OrderDetails>) => {
-    setOrders((prev) =>
-      prev.map((ord) => (ord.orderId === orderId ? { ...ord, ...updated } : ord))
-    );
+  const updateOrder = async (orderId: string, updated: Partial<OrderDetails>) => {
+    // 1. Optimistic local update
+    setOrders((prev) => {
+      const next = prev.map((ord) => (ord.orderId === orderId ? { ...ord, ...updated } : ord));
+      try {
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 2. Persist to Supabase
+    try {
+      await orderService.updateOrder(orderId, updated);
+    } catch (err) {
+      console.error('[DataContext] Failed to persist order update:', err);
+    }
   };
 
-  const updateOrderStatus = (orderId: string, status: OrderDetails['status']) => {
-    setOrders((prev) =>
-      prev.map((ord) => (ord.orderId === orderId ? { ...ord, status } : ord))
-    );
+  const updateOrderStatus = async (orderId: string, status: OrderDetails['status']) => {
+    // 1. Optimistic local update
+    setOrders((prev) => {
+      const next = prev.map((ord) => (ord.orderId === orderId ? { ...ord, status } : ord));
+      try {
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 2. Persist to Supabase
+    try {
+      await orderService.updateOrderStatus(orderId, status);
+    } catch (err) {
+      console.error('[DataContext] Failed to persist order status:', err);
+    }
   };
 
-  const deleteOrder = (orderId: string) => {
-    setOrders((prev) => prev.filter((ord) => ord.orderId !== orderId));
+  const deleteOrder = async (orderId: string) => {
+    // 1. Optimistic local update
+    setOrders((prev) => {
+      const next = prev.filter((ord) => ord.orderId !== orderId);
+      try {
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // 2. Persist to Supabase
+    try {
+      await orderService.deleteOrder(orderId);
+    } catch (err) {
+      console.error('[DataContext] Failed to delete order:', err);
+    }
   };
 
   // Site Settings Action
@@ -831,23 +1004,29 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return saved;
   };
 
-  // Reset & Backup
+  // Reset & Backup: Clears local cache and re-syncs live data from Supabase
   const resetAllData = () => {
-    setBooks(INITIAL_BOOKS);
-    setBanners(INITIAL_BANNERS);
-    setCategories(INITIAL_CATEGORIES);
-    setAuthors(INITIAL_AUTHORS);
-    setPublishers(INITIAL_PUBLISHERS);
-    setOrders(INITIAL_ORDERS);
-    setSiteSettings(DEFAULT_SETTINGS);
-    settingsService.saveSettings(DEFAULT_SETTINGS);
-
     localStorage.removeItem(STORAGE_KEYS.BOOKS);
     localStorage.removeItem(STORAGE_KEYS.BANNERS);
     localStorage.removeItem(STORAGE_KEYS.CATEGORIES);
     localStorage.removeItem(STORAGE_KEYS.AUTHORS);
     localStorage.removeItem(STORAGE_KEYS.PUBLISHERS);
     localStorage.removeItem(STORAGE_KEYS.ORDERS);
+
+    setSiteSettings(DEFAULT_SETTINGS);
+    settingsService.saveSettings(DEFAULT_SETTINGS);
+
+    // Re-fetch all dynamic data directly from Supabase so database data is never lost or overridden
+    bookService.fetchBooks().then((remoteBooks) => {
+      if (Array.isArray(remoteBooks) && remoteBooks.length > 0) {
+        setBooks(remoteBooks);
+      }
+    });
+    bannerService.fetchBanners().then((remoteBanners) => {
+      if (Array.isArray(remoteBanners) && remoteBanners.length > 0) {
+        setBanners(remoteBanners);
+      }
+    });
   };
 
   const exportDataJSON = (): string => {
@@ -947,10 +1126,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         books,
         isBooksLoading,
         banners,
+        coupons,
         categories,
         authors,
         publishers,
         orders,
+        isOrdersLoading,
+        refreshOrders,
         addBook,
         updateBook,
         deleteBook,
@@ -958,6 +1140,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         addBanner,
         updateBanner,
         deleteBanner,
+        duplicateBanner,
+        refreshBanners,
+        addCoupon,
+        updateCoupon,
+        deleteCoupon,
+        refreshCoupons,
         addCategory,
         updateCategory,
         deleteCategory,

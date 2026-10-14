@@ -89,6 +89,8 @@ export async function POST(request: NextRequest) {
       revalidatePath('/');
       revalidatePath('/api/books');
       if (data?.id) revalidatePath(`/book/${data.id}`);
+      if (data?.slug) revalidatePath(`/book/${data.slug}`);
+      revalidatePath('/sitemap.xml');
     } catch (e) {
       // Ignore revalidation errors
     }
@@ -161,6 +163,8 @@ export async function PUT(request: NextRequest) {
       revalidatePath('/');
       revalidatePath('/api/books');
       revalidatePath(`/book/${id}`);
+      if (data?.slug) revalidatePath(`/book/${data.slug}`);
+      revalidatePath('/sitemap.xml');
     } catch (e) {
       // Ignore revalidation errors
     }
