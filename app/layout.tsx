@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Noto_Sans_Bengali } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from '../src/context/AppProviders';
@@ -68,10 +69,30 @@ export default function RootLayout({
 }) {
   return (
     <html lang="bn" className={notoSansBengali.variable} suppressHydrationWarning>
+      <head>
+        {/* Google Tag Manager */}
+        <Script id="google-tag-manager" strategy="beforeInteractive">
+          {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;
+          j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+          f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-55RQL3GZ');`}
+        </Script>
+      </head>
       <body
         className="min-h-screen text-zinc-900 flex flex-col selection:bg-amber-400 selection:text-zinc-950 font-bengali"
         suppressHydrationWarning
       >
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-55RQL3GZ"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+            title="Google Tag Manager"
+          />
+        </noscript>
         <AppProviders>
           {children}
           <WhatsAppFloatingButton />
