@@ -1,16 +1,8 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
-import { Noto_Sans_Bengali } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from '../src/context/AppProviders';
 import { WhatsAppFloatingButton } from '../src/components/WhatsAppFloatingButton';
-
-const notoSansBengali = Noto_Sans_Bengali({
-  subsets: ['bengali'],
-  weight: ['300', '400', '500', '600', '700', '800', '900'],
-  variable: '--font-noto-sans-bengali',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://shesherpata.com'),
@@ -68,8 +60,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn" className={notoSansBengali.variable} suppressHydrationWarning>
+    <html lang="bn" suppressHydrationWarning>
       <head>
+        {/* Keep the existing Noto Sans Bengali appearance without a build-time Google Fonts fetch. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
         {/* Google Tag Manager */}
         <Script id="google-tag-manager" strategy="beforeInteractive">
           {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
