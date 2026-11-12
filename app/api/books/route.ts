@@ -6,6 +6,11 @@ import { bookToRow, rowToBook } from '../../../src/services/bookService';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+// The catalogue is public. A short shared-cache window reduces repeated
+// database reads while keeping changes visible quickly. Admin book mutations
+// already call revalidatePath('/api/books').
+const PUBLIC_BOOKS_CACHE = 'public, s-maxage=30, stale-while-revalidate=60';
+
 /**
  * GET /api/books
  * Public endpoint to fetch all books from the central Supabase database.
@@ -25,7 +30,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 1. Fetch active books ordered by creation date
+    // Fetch the current catalogue. Keep all records here because the same
+    // client-side store is also used by the admin interface.
     const { data, error } = await supabase
       .from('books')
       .select('*')
@@ -42,7 +48,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Return exact production database records without ever modifying or auto-seeding
+    // This endpoint is read-only; short-lived shared caching avoids a fresh
+    // Supabase query for every visitor without changing stored book records.
     return NextResponse.json(
       {
         success: true,
@@ -51,7 +58,7 @@ export async function GET(request: NextRequest) {
       },
       {
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Cache-Control': PUBLIC_BOOKS_CACHE,
         },
       }
     );
