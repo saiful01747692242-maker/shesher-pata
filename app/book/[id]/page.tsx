@@ -41,7 +41,7 @@ function resolveBookOgImage(book: Book | null): string {
 
   // Supabase Storage path
   const supabaseUrl = (
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://tbgtvrveyjuupqbcldya.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ggykvfpsvqqpyluajrne.supabase.co'
   ).replace(/\/+$/, '');
   const cleanPath = raw.replace(/^book-covers\//, '');
   return `${supabaseUrl}/storage/v1/object/public/book-covers/${cleanPath}`;

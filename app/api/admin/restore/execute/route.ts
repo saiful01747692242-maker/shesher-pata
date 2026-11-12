@@ -78,9 +78,9 @@ export async function POST(request: NextRequest) {
       report,
     });
   } catch (err: any) {
-    console.error('[Restore Execute API Error]:', err);
+    console.error('[Restore Execute API Error]:', err?.message || 'Unknown error');
     return NextResponse.json(
-      { error: err.message || 'রিস্টোর কার্যক্রমে সার্ভার ত্রুটি দেখা দিয়েছে' },
+      { error: err?.message || 'রিস্টোর কার্যক্রমে সার্ভার ত্রুটি দেখা দিয়েছে' },
       { status: 500 }
     );
   }

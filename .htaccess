@@ -1,5 +1,8 @@
 # Apache / LiteSpeed configuration for Next.js on cPanel
 
+# Allow uploads up to 100 MB for backup restore archives
+LimitRequestBody 104857600
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /

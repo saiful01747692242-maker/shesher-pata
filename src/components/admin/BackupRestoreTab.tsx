@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import JSZip from 'jszip';
 import {
   Download,
   Upload,
@@ -30,6 +31,64 @@ import {
   FileCheck2,
 } from 'lucide-react';
 import { toBengaliNumber } from '../../utils/formatters';
+
+/**
+ * Safely parses API responses checking status codes and content-type.
+ * Prevents "Unexpected token 'R', Request En... is not valid JSON" syntax errors
+ * when proxies or hosting gateways return non-JSON responses (e.g. HTTP 413, 502, 504).
+ */
+async function parseApiResponse<T = any>(res: Response): Promise<{
+  ok: boolean;
+  status: number;
+  data: T | null;
+  errorMessage: string | null;
+}> {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      const data = await res.json();
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          data,
+          errorMessage: data.error || `অনুরোধ ব্যর্থ হয়েছে (HTTP ${res.status})`,
+        };
+      }
+      return { ok: true, status: res.status, data, errorMessage: null };
+    } catch {
+      // Fall through to text handling if json parse fails
+    }
+  }
+
+  let text = '';
+  try {
+    text = await res.text();
+  } catch {
+    text = '';
+  }
+
+  let errorMessage = '';
+  if (
+    res.status === 413 ||
+    text.toLowerCase().includes('entity too large') ||
+    text.toLowerCase().includes('payload too large')
+  ) {
+    errorMessage =
+      'ফাইলের আকার অতিরিক্ত বড় (HTTP 413: Request Entity Too Large)। সার্ভার বা ক্লাউড প্ল্যাটফর্মের আপলোড সীমা অতিক্রম করেছে।';
+  } else if (res.status === 401) {
+    errorMessage = 'অননুমোদিত: আপনার অ্যাডমিন সেশন শেষ হয়ে গেছে (HTTP 401)। অনুগ্রহ করে আবার লগইন করুন।';
+  } else if (res.status === 403) {
+    errorMessage = 'অ্যাক্সেস নিষিদ্ধ: এই কার্যক্রম সম্পাদনের অনুমতি নেই (HTTP 403)।';
+  } else if (res.status === 504 || res.status === 502 || res.status === 503) {
+    errorMessage = `সার্ভার সংযোগ সময়সীমা অতিক্রম করেছে (HTTP ${res.status})। অনুগ্রহ করে আবার চেষ্টা করুন।`;
+  } else {
+    const cleanText = text.replace(/<[^>]*>?/gm, '').trim().slice(0, 200);
+    errorMessage = cleanText || `সার্ভারে ত্রুটি দেখা দিয়েছে (HTTP ${res.status})`;
+  }
+
+  return { ok: false, status: res.status, data: null, errorMessage };
+}
 
 interface LiveStatusData {
   timestamp: string;
@@ -153,6 +212,7 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
   const [fullConfirmText, setFullConfirmText] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
   const [restoreReport, setRestoreReport] = useState<RestoreReportData | null>(null);
+  const [restoreProgressMsg, setRestoreProgressMsg] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<'upload' | 'preview' | 'executing' | 'report'>('upload');
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -164,9 +224,9 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
         cache: 'no-store',
         credentials: 'include',
       });
-      if (res.ok) {
-        const data = await res.json();
-        setLiveStatus(data);
+      const parsed = await parseApiResponse<LiveStatusData>(res);
+      if (parsed.ok && parsed.data) {
+        setLiveStatus(parsed.data);
       }
     } catch (e) {
       console.warn('Failed to fetch backup status:', e);
@@ -195,8 +255,8 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
       });
 
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'ব্যাকআপ ফাইল তৈরিতে ব্যর্থ হয়েছে');
+        const parsed = await parseApiResponse(res);
+        throw new Error(parsed.errorMessage || 'ব্যাকআপ ফাইল তৈরিতে ব্যর্থ হয়েছে');
       }
 
       const blob = await res.blob();
@@ -238,6 +298,13 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
       return;
     }
 
+    const MAX_LIMIT = 100 * 1024 * 1024; // 100 MB max compressed size
+    if (file.size > MAX_LIMIT) {
+      const sizeMb = (file.size / 1024 / 1024).toFixed(1);
+      showNotice?.(`ফাইলের আকার (${sizeMb} MB) অনুমোদিত সর্বোচ্চ সীমা (১০০ MB) অতিক্রম করেছে!`, 'error');
+      return;
+    }
+
     setSelectedFile(file);
     setIsPreviewing(true);
     setPreviewError(null);
@@ -245,8 +312,50 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
     setActiveStep('preview');
 
     try {
+      let uploadFile: Blob = file;
+      let isPackaged = false;
+
+      // Platform Payload Limit Check:
+      // Vercel serverless functions enforce a strict 4.5 MB request body limit.
+      // If the backup ZIP exceeds 4 MB (common when complete backup contains book images),
+      // we extract manifest, database tables, and schema into a lightweight preview bundle (~70 KB)
+      // while retaining 0-byte entries for storage file paths so that storage counts and bucket checks
+      // on the server work identically without uploading tens of megabytes of binary images.
+      if (file.size > 4 * 1024 * 1024) {
+        try {
+          const zip = await JSZip.loadAsync(file);
+          const previewZip = new JSZip();
+
+          for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+            if (zipEntry.dir) {
+              previewZip.folder(relativePath);
+            } else if (relativePath.startsWith('storage/')) {
+              // Retain placeholder entry so path and bucket recognition match exactly
+              previewZip.file(relativePath, new Uint8Array(0));
+            } else {
+              // Copy table JSONs, manifest.json, schema.sql, README.txt with complete data
+              const content = await zipEntry.async('uint8array');
+              previewZip.file(relativePath, content);
+            }
+          }
+
+          uploadFile = await previewZip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 },
+          });
+          isPackaged = true;
+        } catch (zipErr: any) {
+          throw new Error(`আর্কাইভ ফাইলটি পড়া সম্ভব হয়নি: ${zipErr.message || 'Corrupted archive'}`);
+        }
+      }
+
       const formData = new FormData();
-      formData.append('backupFile', file);
+      formData.append('backupFile', uploadFile, file.name);
+      if (isPackaged) {
+        formData.append('originalFileName', file.name);
+        formData.append('originalSizeBytes', String(file.size));
+      }
 
       const res = await fetch('/api/admin/restore/preview', {
         method: 'POST',
@@ -254,11 +363,16 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
         body: formData,
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        setPreviewError(data.error || data.preview?.validationErrors?.join(', ') || 'আর্কাইভ ফাইলটি প্রিভিউ করা সম্ভব হয়নি।');
+      const parsed = await parseApiResponse<{ success: boolean; preview: RestorePreviewData; error?: string }>(res);
+      if (!parsed.ok || !parsed.data?.success) {
+        const errMsg =
+          parsed.errorMessage ||
+          parsed.data?.error ||
+          parsed.data?.preview?.validationErrors?.join(', ') ||
+          'আর্কাইভ ফাইলটি প্রিভিউ করা সম্ভব হয়নি।';
+        setPreviewError(errMsg);
       } else {
-        setPreviewData(data.preview);
+        setPreviewData(parsed.data.preview);
       }
     } catch (err: any) {
       setPreviewError(err.message || 'সার্ভারে সংযোগ স্থাপন করা সম্ভব হয়নি');
@@ -277,38 +391,182 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
     }
 
     setIsRestoring(true);
+    setRestoreProgressMsg('রিস্টোর প্রক্রিয়া শুরু হচ্ছে...');
     setActiveStep('executing');
 
     try {
-      const formData = new FormData();
-      formData.append('backupFile', selectedFile);
-      formData.append('mode', restoreMode);
-      formData.append('conflictStrategy', conflictStrategy);
-      formData.append('restoreStorage', String(restoreStorage));
-      formData.append('wipeStorageBeforeImport', String(wipeStorageBeforeImport));
-      formData.append('confirmationCode', fullConfirmText);
+      const isLargeFile = selectedFile.size > 4 * 1024 * 1024;
 
-      const res = await fetch('/api/admin/restore/execute', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
+      if (!isLargeFile) {
+        // Direct single-request execution for standard-sized archives
+        const formData = new FormData();
+        formData.append('backupFile', selectedFile);
+        formData.append('mode', restoreMode);
+        formData.append('conflictStrategy', conflictStrategy);
+        formData.append('restoreStorage', String(restoreStorage));
+        formData.append('wipeStorageBeforeImport', String(wipeStorageBeforeImport));
+        formData.append('confirmationCode', fullConfirmText);
 
-      const data = await res.json();
-      if (res.ok && data.report) {
-        setRestoreReport(data.report);
-        setActiveStep('report');
-        fetchLiveStatus();
-        onSyncComplete?.();
-        showNotice?.(data.report.summaryMessage, data.report.success ? 'success' : 'error');
+        const res = await fetch('/api/admin/restore/execute', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+
+        const parsed = await parseApiResponse<{ success: boolean; report: RestoreReportData; error?: string }>(res);
+        if (parsed.ok && parsed.data?.report) {
+          setRestoreReport(parsed.data.report);
+          setActiveStep('report');
+          fetchLiveStatus();
+          onSyncComplete?.();
+          showNotice?.(parsed.data.report.summaryMessage, parsed.data.report.success ? 'success' : 'error');
+        } else {
+          throw new Error(parsed.errorMessage || parsed.data?.error || 'রিস্টোর প্রক্রিয়ায় ত্রুটি ঘটেছে');
+        }
       } else {
-        throw new Error(data.error || 'রিস্টোর প্রক্রিয়ায় ত্রুটি ঘটেছে');
+        // Large archive (> 4 MB) execution flow to safely respect cloud payload boundaries:
+        const zip = await JSZip.loadAsync(selectedFile);
+        let storageSuccessCount = 0;
+        let storageFailCount = 0;
+        const storageErrors: string[] = [];
+
+        // 1. Restore storage files in small safe batches if restoreStorage is enabled
+        if (restoreStorage !== false) {
+          const storageEntries: Array<{ bucket: string; path: string; fullZipPath: string }> = [];
+          for (const zipPath of Object.keys(zip.files)) {
+            if (zipPath.startsWith('storage/') && !zip.files[zipPath].dir) {
+              const parts = zipPath.replace('storage/', '').split('/');
+              const bucket = parts[0];
+              const filePath = parts.slice(1).join('/');
+              if (bucket && filePath) {
+                storageEntries.push({ bucket, path: filePath, fullZipPath: zipPath });
+              }
+            }
+          }
+
+          if (storageEntries.length > 0) {
+            const byBucket: Record<string, typeof storageEntries> = {};
+            for (const item of storageEntries) {
+              if (!byBucket[item.bucket]) byBucket[item.bucket] = [];
+              byBucket[item.bucket].push(item);
+            }
+
+            let uploadedTotal = 0;
+            const batchSize = 5; // 5 images per request (~1 MB) to remain well below 4.5 MB
+
+            for (const [bucketName, items] of Object.entries(byBucket)) {
+              for (let i = 0; i < items.length; i += batchSize) {
+                const batch = items.slice(i, i + batchSize);
+                const batchFormData = new FormData();
+                batchFormData.append('bucket', bucketName);
+                const paths = batch.map((b) => b.path);
+                batchFormData.append('paths', JSON.stringify(paths));
+
+                for (const item of batch) {
+                  const blob = await zip.files[item.fullZipPath].async('blob');
+                  batchFormData.append('files', blob, item.path);
+                }
+
+                setRestoreProgressMsg(
+                  `স্টোরেজ ফাইল আপলোড হচ্ছে (${bucketName}): ${toBengaliNumber(uploadedTotal + 1)}-${toBengaliNumber(
+                    Math.min(uploadedTotal + batch.length, storageEntries.length)
+                  )}/${toBengaliNumber(storageEntries.length)}...`
+                );
+
+                const batchRes = await fetch('/api/admin/restore/storage-batch', {
+                  method: 'POST',
+                  credentials: 'include',
+                  body: batchFormData,
+                });
+
+                const batchParsed = await parseApiResponse<{
+                  success: boolean;
+                  succeeded: number;
+                  failed: number;
+                  errors: string[];
+                }>(batchRes);
+
+                if (batchParsed.ok && batchParsed.data) {
+                  storageSuccessCount += batchParsed.data.succeeded || 0;
+                  storageFailCount += batchParsed.data.failed || 0;
+                  if (batchParsed.data.errors) {
+                    storageErrors.push(...batchParsed.data.errors);
+                  }
+                } else {
+                  storageFailCount += batch.length;
+                  storageErrors.push(batchParsed.errorMessage || 'স্টোরেজ ব্যাচ আপলোড ব্যর্থ হয়েছে');
+                }
+
+                uploadedTotal += batch.length;
+              }
+            }
+          }
+        }
+
+        // 2. Restore database records via lightweight database archive
+        setRestoreProgressMsg('ডেটাবেজ রেকর্ড পুনরুদ্ধার ও সিনক্রোনাইজেশন চলছে...');
+
+        const dbZip = new JSZip();
+        for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+          if (!relativePath.startsWith('storage/')) {
+            if (zipEntry.dir) {
+              dbZip.folder(relativePath);
+            } else {
+              const content = await zipEntry.async('uint8array');
+              dbZip.file(relativePath, content);
+            }
+          }
+        }
+
+        const dbBlob = await dbZip.generateAsync({
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        });
+
+        const formData = new FormData();
+        formData.append('backupFile', dbBlob, 'database-package.zip');
+        formData.append('mode', restoreMode);
+        formData.append('conflictStrategy', conflictStrategy);
+        formData.append('restoreStorage', 'false'); // Handled via storage-batch above
+        formData.append('wipeStorageBeforeImport', 'false');
+        formData.append('confirmationCode', fullConfirmText);
+
+        const res = await fetch('/api/admin/restore/execute', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+
+        const parsed = await parseApiResponse<{ success: boolean; report: RestoreReportData; error?: string }>(res);
+        if (parsed.ok && parsed.data?.report) {
+          const report = parsed.data.report;
+
+          // Merge storage stats if batched storage upload took place
+          if (restoreStorage !== false) {
+            report.storage.totalFiles = storageSuccessCount + storageFailCount;
+            report.storage.succeeded = storageSuccessCount;
+            report.storage.failed = storageFailCount;
+            if (storageErrors.length > 0) {
+              report.errors.push(...storageErrors);
+            }
+          }
+
+          setRestoreReport(report);
+          setActiveStep('report');
+          fetchLiveStatus();
+          onSyncComplete?.();
+          showNotice?.(report.summaryMessage, report.success ? 'success' : 'error');
+        } else {
+          throw new Error(parsed.errorMessage || parsed.data?.error || 'ডেটাবেজ রিস্টোর প্রক্রিয়ায় ত্রুটি ঘটেছে');
+        }
       }
     } catch (err: any) {
       showNotice?.(err.message || 'রিস্টোর ব্যর্থ হয়েছে!', 'error');
       setActiveStep('preview');
     } finally {
       setIsRestoring(false);
+      setRestoreProgressMsg(null);
     }
   };
 
@@ -318,6 +576,7 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
     setPreviewData(null);
     setPreviewError(null);
     setRestoreReport(null);
+    setRestoreProgressMsg(null);
     setFullConfirmText('');
     setRestoreMode('safe');
     setActiveStep('upload');
@@ -1158,7 +1417,7 @@ export function BackupRestoreTab({ onSyncComplete, showNotice }: BackupRestoreTa
           <div className="p-10 text-center space-y-4 bg-zinc-50 rounded-2xl border border-zinc-200 animate-fadeIn">
             <RefreshCw className="w-10 h-10 text-amber-600 animate-spin mx-auto" />
             <h4 className="font-black text-base text-zinc-900">
-              পুনরুদ্ধার কাজ চলমান রয়েছে, অনুগ্রহ করে পেজ রিফ্রেশ করবেন না...
+              {restoreProgressMsg || 'পুনরুদ্ধার কাজ চলমান রয়েছে, অনুগ্রহ করে পেজ রিফ্রেশ করবেন না...'}
             </h4>
             <p className="text-xs text-zinc-500 max-w-md mx-auto">
               প্রথমে Supabase স্টোরেজে মূল ছবি আপলোড করা হচ্ছে, তারপর ডিপেন্ডেন্সি অর্ডার বজায় রেখে ডেটাবেজে রেকর্ড ইনসার্ট হচ্ছে।

@@ -52,16 +52,20 @@ export async function POST(request: NextRequest) {
 
     const preview = await previewBackupArchive(buffer);
 
+    const originalFileName = (formData.get('originalFileName') as string) || file.name;
+    const originalSizeBytesRaw = formData.get('originalSizeBytes') as string | null;
+    const fileSizeBytes = originalSizeBytesRaw ? parseInt(originalSizeBytesRaw, 10) : file.size;
+
     return NextResponse.json({
       success: preview.valid,
       preview,
-      fileName: file.name,
-      fileSizeBytes: file.size,
+      fileName: originalFileName,
+      fileSizeBytes: isNaN(fileSizeBytes) ? file.size : fileSizeBytes,
     });
   } catch (err: any) {
-    console.error('[Restore Preview API Error]:', err);
+    console.error('[Restore Preview API Error]:', err?.message || 'Unknown error');
     return NextResponse.json(
-      { error: err.message || 'ব্যাকআপ ফাইলটি প্রিভিউ করতে সমস্যা হয়েছে' },
+      { error: err?.message || 'ব্যাকআপ ফাইলটি প্রিভিউ করতে সমস্যা হয়েছে' },
       { status: 500 }
     );
   }
