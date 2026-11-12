@@ -1,15 +1,8 @@
 import type { Metadata } from 'next';
-import { Noto_Sans_Bengali } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { AppProviders } from '../src/context/AppProviders';
 import { WhatsAppFloatingButton } from '../src/components/WhatsAppFloatingButton';
-
-const notoSansBengali = Noto_Sans_Bengali({
-  subsets: ['bengali'],
-  weight: ['300', '400', '500', '600', '700', '800', '900'],
-  variable: '--font-noto-sans-bengali',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://shesherpata.com'),
@@ -67,11 +60,38 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn" className={notoSansBengali.variable} suppressHydrationWarning>
+    <html lang="bn" suppressHydrationWarning>
+      <head>
+        {/* Keep the existing Noto Sans Bengali appearance without a build-time Google Fonts fetch. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@300;400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
+        {/* Google Tag Manager */}
+        <Script id="google-tag-manager" strategy="beforeInteractive">
+          {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;
+          j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
+          f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-55RQL3GZ');`}
+        </Script>
+      </head>
       <body
         className="min-h-screen text-zinc-900 flex flex-col selection:bg-amber-400 selection:text-zinc-950 font-bengali"
         suppressHydrationWarning
       >
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-55RQL3GZ"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+            title="Google Tag Manager"
+          />
+        </noscript>
         <AppProviders>
           {children}
           <WhatsAppFloatingButton />
