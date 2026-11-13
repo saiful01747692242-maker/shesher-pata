@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { reviewService } from '../services/reviewService';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
 import { trackViewContent } from '../utils/metaPixel';
+import { trackGA4ViewItem } from '../utils/ga4Ecommerce';
 import { matchesCategory, matchesAuthor } from '../utils/filterUtils';
 
 interface ProductDetailsModalProps {
@@ -168,6 +169,11 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
       setActiveImage(book.cover_image || book.image);
     }
   }, [book?.id, book?.stock, book?.image, book?.cover_image]);
+
+  // Send one GA4 view_item event per book ID, independent of stock/image refreshes.
+  useEffect(() => {
+    if (book?.id) trackGA4ViewItem(book);
+  }, [book?.id]);
 
   // Gallery images (fallback to main cover)
   const gallery = book.gallery && book.gallery.length > 0 ? book.gallery : [book.cover_image || book.image].filter(Boolean);

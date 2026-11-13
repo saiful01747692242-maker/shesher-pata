@@ -5,6 +5,7 @@ import { Book, CartItem } from '../types';
 import { useToast } from './ToastContext';
 import { useData } from './DataContext';
 import { trackAddToCart } from '../utils/metaPixel';
+import { trackGA4AddToCart } from '../utils/ga4Ecommerce';
 import { couponService } from '../services/couponService';
 
 interface CartContextType {
@@ -106,6 +107,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     showToast(`"${book.title}" বইটি কার্টে যোগ হয়েছে ✓`, 'success');
     trackAddToCart(book, quantity);
+    trackGA4AddToCart(book, quantity);
   };
 
   const removeFromCart = (bookId: string) => {

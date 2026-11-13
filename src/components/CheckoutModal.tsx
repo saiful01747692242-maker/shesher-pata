@@ -8,6 +8,7 @@ import { useData } from '../context/DataContext';
 import { OrderDetails, CartItem } from '../types';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
 import { trackInitiateCheckout, trackPurchase } from '../utils/metaPixel';
+import { trackGA4BeginCheckout, trackGA4Purchase } from '../utils/ga4Ecommerce';
 import { couponService } from '../services/couponService';
 import { orderService } from '../services/orderService';
 import { useAuth } from '../context/AuthContext';
@@ -169,6 +170,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     if (isOpen && !completedOrderId && activeItems.length > 0 && !hasInitiatedRef.current) {
       hasInitiatedRef.current = true;
       trackInitiateCheckout(activeItems, activeGrandTotal);
+      trackGA4BeginCheckout(activeItems, activeCouponCode);
     }
     if (!isOpen) {
       hasInitiatedRef.current = false;
@@ -276,6 +278,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       // Add to local state and update pixel
       addOrder(newOrder);
       trackPurchase(newOrder);
+      trackGA4Purchase(newOrder);
 
       // Record coupon usage if applicable
       if (activeCouponCode) {
