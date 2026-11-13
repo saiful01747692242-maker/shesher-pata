@@ -146,11 +146,12 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
+    // Anonymous clients are allowed to INSERT orders by RLS, but cannot SELECT
+    // them. Avoid RETURNING (.select()) here so the insert does not require
+    // a separate SELECT policy for the newly created row.
+    const { error } = await supabase
       .from('orders')
-      .insert(row)
-      .select()
-      .single();
+      .insert(row);
 
     if (error) {
       console.error('[API /api/orders POST Error]:', error.message);
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      order: data,
+      order: row,
       message: 'অর্ডার সফলভাবে ডাটাবেজে সংরক্ষিত হয়েছে',
     });
   } catch (err: any) {
