@@ -170,7 +170,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     if (isOpen && !completedOrderId && activeItems.length > 0 && !hasInitiatedRef.current) {
       hasInitiatedRef.current = true;
       trackInitiateCheckout(activeItems, activeGrandTotal);
-      trackGA4BeginCheckout(activeItems, activeGrandTotal, activeCouponCode);
+      trackGA4BeginCheckout(activeItems, activeCouponCode);
     }
     if (!isOpen) {
       hasInitiatedRef.current = false;
