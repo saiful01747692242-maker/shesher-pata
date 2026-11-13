@@ -52,7 +52,7 @@ export function trackGA4AddToCart(book: Book, quantity = 1): void {
   });
 }
 
-export function trackGA4BeginCheckout(items: CartItem[], total: number, coupon?: string): void {
+export function trackGA4BeginCheckout(items: CartItem[], coupon?: string): void {
   if (!items?.length) return;
   const gaItems = items.map(({ book, quantity }) => toGA4Item(book, quantity));
   const itemValue = gaItems.reduce((sum, item) => {
