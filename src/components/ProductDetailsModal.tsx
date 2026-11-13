@@ -165,11 +165,15 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   useEffect(() => {
     if (book) {
       trackViewContent(book);
-      trackGA4ViewItem(book);
       setQuantity(book.stock > 0 ? 1 : 0);
       setActiveImage(book.cover_image || book.image);
     }
   }, [book?.id, book?.stock, book?.image, book?.cover_image]);
+
+  // Send one GA4 view_item event per book ID, independent of stock/image refreshes.
+  useEffect(() => {
+    if (book?.id) trackGA4ViewItem(book);
+  }, [book?.id]);
 
   // Gallery images (fallback to main cover)
   const gallery = book.gallery && book.gallery.length > 0 ? book.gallery : [book.cover_image || book.image].filter(Boolean);
