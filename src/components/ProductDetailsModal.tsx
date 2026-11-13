@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { reviewService } from '../services/reviewService';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
 import { trackViewContent } from '../utils/metaPixel';
+import { trackGA4ViewItem } from '../utils/ga4Ecommerce';
 import { matchesCategory, matchesAuthor } from '../utils/filterUtils';
 
 interface ProductDetailsModalProps {
@@ -164,6 +165,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   useEffect(() => {
     if (book) {
       trackViewContent(book);
+      trackGA4ViewItem(book);
       setQuantity(book.stock > 0 ? 1 : 0);
       setActiveImage(book.cover_image || book.image);
     }
