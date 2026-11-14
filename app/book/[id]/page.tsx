@@ -129,15 +129,23 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
 
 function getBookPageTitle(book: Book): string {
   const brand = ' | শেষের পাতা';
-  const author = (book.author || '').trim();
-  const separator = author ? ' — ' : '';
-  const availableTitleLength = Math.max(12, 60 - brand.length - (author ? author.length + separator.length : 0));
   const title = (book.title || 'বই').trim();
-  const shortenedTitle = title.length > availableTitleLength
-    ? `${title.slice(0, availableTitleLength - 1).trimEnd()}…`
-    : title;
-  const candidate = `${shortenedTitle}${author ? `${separator}${author}` : ''}${brand}`;
-  return candidate.length <= 60 ? candidate : `${title.slice(0, 60 - brand.length - 1).trimEnd()}…${brand}`;
+  const author = (book.author || '').trim();
+  const withAuthor = `${title}${author ? ` — ${author}` : ''}${brand}`;
+
+  // Keep the complete book title whenever possible; the author is secondary
+  // when both cannot fit within a search-friendly 60-character title.
+  if (withAuthor.length <= 60) return withAuthor;
+  if (title.length + brand.length <= 60) return `${title}${brand}`;
+
+  const maxTitleLength = 60 - brand.length - 1;
+  const prefix = title.slice(0, maxTitleLength);
+  const lastWordBoundary = prefix.lastIndexOf(' ');
+  const safePrefix = lastWordBoundary >= Math.floor(prefix.length * 0.55)
+    ? prefix.slice(0, lastWordBoundary).trimEnd()
+    : prefix.trimEnd();
+
+  return `${safePrefix}…${brand}`;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
