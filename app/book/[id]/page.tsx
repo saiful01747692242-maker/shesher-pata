@@ -1,6 +1,6 @@
 import React from 'react';
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { BOOKS } from '../../../src/data/books';
 import { Book } from '../../../src/types';
 import { getServerSupabaseClient } from '../../../src/lib/serverSupabase';
@@ -197,6 +197,14 @@ export default async function BookPage({ params }: PageProps) {
     notFound();
   }
 
+  const bookPageUrl = getBookUrl(book, SITE_URL);
+  const requestedUrl = `${SITE_URL}/book/${encodeURIComponent(decoded)}`;
+
+  // Consolidate legacy ID/old-slug URLs onto the one permanent canonical URL.
+  if (requestedUrl !== bookPageUrl) {
+    permanentRedirect(bookPageUrl);
+  }
+
   // Fetch all books for related recommendations
   let allBooks: Book[] = BOOKS;
   const supabase = getServerSupabaseClient();
@@ -212,38 +220,69 @@ export default async function BookPage({ params }: PageProps) {
   }
 
   const bookImageUrl = resolveBookOgImage(book);
-  const bookPageUrl = getBookUrl(book, SITE_URL);
-
-  // JSON-LD structured data for Google Books Rich Snippets
-  const jsonLd = {
+  const productDescription = getBookDescription(book);
+  const productId = `${bookPageUrl}#product`;
+  const bookId = `${bookPageUrl}#book`;
+  const hasValidPrice = Number.isFinite(Number(book.price)) && Number(book.price) > 0;
+  const structuredData = {
     '@context': 'https://schema.org',
-    '@type': 'Book',
-    name: book.title,
-    url: bookPageUrl,
-    author: {
-      '@type': 'Person',
-      name: book.author,
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: book.publisher,
-    },
-    image: bookImageUrl,
-    isbn: book.isbn,
-    offers: {
-      '@type': 'Offer',
-      priceCurrency: 'BDT',
-      price: book.price,
-      availability: book.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      url: bookPageUrl,
-    },
+    '@graph': [
+      {
+        '@type': 'Book',
+        '@id': bookId,
+        name: book.title,
+        url: bookPageUrl,
+        image: bookImageUrl,
+        author: { '@type': 'Person', name: book.author },
+        ...(book.publisher ? {
+          publisher: { '@type': 'Organization', name: book.publisher },
+        } : {}),
+        ...(book.isbn ? { isbn: book.isbn } : {}),
+        ...(book.language ? { inLanguage: book.language } : {}),
+      },
+      {
+        '@type': 'Product',
+        '@id': productId,
+        name: book.title,
+        description: productDescription,
+        image: [bookImageUrl],
+        url: bookPageUrl,
+        sku: String(book.id),
+        category: book.category || 'Books',
+        ...(hasValidPrice ? {
+          offers: {
+            '@type': 'Offer',
+            url: bookPageUrl,
+            priceCurrency: 'BDT',
+            price: Number(book.price).toFixed(2),
+            availability: Number(book.stock) > 0
+              ? 'https://schema.org/InStock'
+              : 'https://schema.org/OutOfStock',
+            seller: {
+              '@type': 'Organization',
+              name: 'শেষের পাতা | Shesher Pata',
+              url: SITE_URL,
+            },
+          },
+        } : {}),
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'হোম', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: book.title, item: bookPageUrl },
+        ],
+      },
+    ],
   };
+  // Escape HTML-significant characters before embedding JSON-LD in a script element.
+  const safeStructuredData = JSON.stringify(structuredData).replace(/</g, '\\u003c');
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeStructuredData }}
       />
       <BookDetailClient book={book} allBooks={allBooks} />
     </>
