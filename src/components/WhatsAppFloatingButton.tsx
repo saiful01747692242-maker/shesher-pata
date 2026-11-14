@@ -51,14 +51,26 @@ export const WhatsAppFloatingButton: React.FC = () => {
         {/* Subtle breathing ripple aura */}
         <span className="absolute inset-0 rounded-full bg-[#25D366] animate-ping opacity-20 pointer-events-none" />
 
-        {/* User-supplied Authentic WhatsApp Icon Image */}
-        <img
-          src="/images/whatsapp-icon.png"
-          alt="WhatsApp-এ যোগাযোগ করুন"
-          width={36}
-          height={36}
-          className="w-8 h-8 sm:w-9 sm:h-9 object-contain transition-transform duration-300 group-hover:scale-110 drop-shadow-xs"
-        />
+        {/* Lightweight inline WhatsApp-style mark; avoids downloading a 150 KB PNG */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="w-8 h-8 sm:w-9 sm:h-9 transition-transform duration-300 group-hover:scale-110 drop-shadow-xs"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M20.1 11.8a8.1 8.1 0 0 1-12 7.1L4 20l1.1-4A8.1 8.1 0 1 1 20.1 11.8Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M9 8.2c.2-.4.4-.4.7-.4h.5c.2 0 .4.1.5.4l.7 1.6c.1.2.1.4-.1.6l-.5.6c-.2.2-.2.4 0 .6.5.9 1.2 1.6 2.1 2.1.2.1.4.1.6-.1l.7-.8c.2-.2.4-.2.6-.1l1.5.7c.3.1.4.3.4.5 0 .4-.2 1.1-.7 1.5-.5.5-1.2.7-2 .5-1-.2-2.3-.8-3.6-2-1.1-1-1.9-2.3-2.1-3.2-.2-.8.1-1.5.5-2Z"
+            fill="currentColor"
+          />
+        </svg>
       </a>
     </div>
   );
