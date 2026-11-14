@@ -6,7 +6,6 @@ import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { matchesCategory, normalizeBengali, isAllCategory } from '../utils/filterUtils';
 import { transliterateBengaliToSlug } from '../utils/bookUrl';
-import { toBengaliNumber } from '../utils/formatters';
 
 interface CategoryCarouselProps {
   onSelectCategory: (categoryId: string) => void;
@@ -58,7 +57,6 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
           id: liveCat.id,
           name: liveCat.name,
           bookCount,
-          count: `${toBengaliNumber(bookCount)}টি বই`,
           image: liveCat.imageUrl || (liveCat as any).image || quick?.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=160&q=80',
         };
       })
@@ -137,7 +135,6 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
                 <h3 className="text-[11px] sm:text-xs font-bold text-zinc-800 group-hover:text-amber-700 transition-colors line-clamp-1 leading-tight">
                   {cat.name}
                 </h3>
-                <span className="text-[9px] text-zinc-400 font-normal mt-0.5">{cat.count}</span>
                 <Link
                   href={`/category/${encodeURIComponent(transliterateBengaliToSlug(cat.name))}`}
                   onClick={(event) => event.stopPropagation()}
