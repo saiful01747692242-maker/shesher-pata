@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useData } from '../context/DataContext';
+import { MessageCircle } from 'lucide-react';
 import { buildWhatsAppUrl, WHATSAPP_CONFIG } from '../config/whatsapp';
 
 export const WhatsAppFloatingButton: React.FC = () => {
@@ -51,13 +52,10 @@ export const WhatsAppFloatingButton: React.FC = () => {
         {/* Subtle breathing ripple aura */}
         <span className="absolute inset-0 rounded-full bg-[#25D366] animate-ping opacity-20 pointer-events-none" />
 
-        {/* User-supplied Authentic WhatsApp Icon Image */}
-        <img
-          src="/images/whatsapp-icon.png"
-          alt="WhatsApp-এ যোগাযোগ করুন"
-          width={36}
-          height={36}
-          className="w-8 h-8 sm:w-9 sm:h-9 object-contain transition-transform duration-300 group-hover:scale-110 drop-shadow-xs"
+        <MessageCircle
+          aria-hidden="true"
+          className="w-8 h-8 sm:w-9 sm:h-9 transition-transform duration-300 group-hover:scale-110 drop-shadow-xs"
+          strokeWidth={2.4}
         />
       </a>
     </div>
