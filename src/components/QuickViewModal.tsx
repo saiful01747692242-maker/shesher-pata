@@ -76,14 +76,6 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
               লেখক: <span className="font-semibold text-zinc-700">{book.author}</span> • {book.publisher}
             </p>
 
-            {Number(book.reviewCount) > 0 && (
-              <div className="flex items-center gap-1 text-xs text-zinc-600 mb-3">
-                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                <span className="font-bold">{toBengaliNumber(book.rating)}</span>
-                <span className="text-zinc-400">({toBengaliNumber(book.reviewCount)} রিভিউ)</span>
-              </div>
-            )}
-
             <p className="text-xs text-zinc-600 line-clamp-3 mb-4 leading-relaxed">
               {book.description}
             </p>
