@@ -188,6 +188,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const pageUrl = getBookUrl(book, SITE_URL);
   const ogImageUrl = resolveBookOgImage(book);
   const title = getBookPageTitle(book);
+  const description = getBookDescription(book);
 
   return {
     title,
