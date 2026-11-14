@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Phone, Mail, MapPin, Facebook, Twitter, Instagram, Youtube, Check, Heart } from 'lucide-react';
+import { Phone, Mail, MapPin, Facebook, Instagram, Check, Heart } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { useData } from '../context/DataContext';
 
@@ -114,24 +114,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
                   aria-label="ইনস্টাগ্রাম"
                 >
                   <Instagram className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://twitter.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#1DA1F2] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
-                  aria-label="টুইটার"
-                >
-                  <Twitter className="w-4 h-4" />
-                </a>
-                <a
-                  href="https://youtube.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#FF0000] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
-                  aria-label="ইউটিউব"
-                >
-                  <Youtube className="w-4 h-4" />
                 </a>
               </div>
 

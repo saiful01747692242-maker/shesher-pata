@@ -320,13 +320,15 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                   {book.category}
                 </span>
 
-                <div className="flex items-center gap-1.5 text-sm text-zinc-600">
-                  <div className="flex items-center text-amber-500">
-                    <Star className="w-4 h-4 fill-current" />
+                {Number(book.reviewCount) > 0 && (
+                  <div className="flex items-center gap-1.5 text-sm text-zinc-600">
+                    <div className="flex items-center text-amber-500">
+                      <Star className="w-4 h-4 fill-current" />
+                    </div>
+                    <span className="font-bold text-zinc-900">{toBengaliNumber(book.rating)}</span>
+                    <span className="text-zinc-400">({toBengaliNumber(book.reviewCount)} রিভিউ)</span>
                   </div>
-                  <span className="font-bold text-zinc-900">{toBengaliNumber(book.rating)}</span>
-                  <span className="text-zinc-400">({toBengaliNumber(book.reviewCount)} রিভিউ)</span>
-                </div>
+                )}
               </div>
 
               {/* Title */}

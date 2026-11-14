@@ -1,6 +1,5 @@
 import { MetadataRoute } from 'next';
 import { getServerSupabaseClient } from '../src/lib/serverSupabase';
-import { BOOKS } from '../src/data/books';
 import { getBookSlug } from '../src/utils/bookUrl';
 
 // Generate the sitemap at request time so newly published Supabase books appear automatically.
@@ -14,10 +13,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     updatedAt: Date;
   }
 
-  let bookEntries: SitemapBookEntry[] = BOOKS.map((book) => ({
-    slug: getBookSlug(book),
-    updatedAt: new Date(),
-  }));
+  // Never fall back to the built-in demo catalogue: it would publish URLs of books that do not exist.
+  let bookEntries: SitemapBookEntry[] = [];
 
   const supabase = getServerSupabaseClient();
   if (supabase) {
@@ -36,7 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         }));
       }
     } catch (error) {
-      console.error('[Sitemap] Failed to load books from Supabase; using static fallback.', error);
+      console.error('[Sitemap] Failed to load books from Supabase; listing only the main pages.', error);
     }
   }
 
@@ -51,6 +48,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'daily',
       priority: 1.0,
     },
+    ...['about', 'contact', 'help', 'privacy', 'terms'].map((page) => ({
+      url: `${baseUrl}/${page}`,
+      changeFrequency: 'monthly' as const,
+      priority: 0.4,
+    })),
     ...uniqueEntries.map((entry) => ({
       url: `${baseUrl}/book/${encodeURIComponent(entry.slug)}`,
       lastModified: entry.updatedAt,

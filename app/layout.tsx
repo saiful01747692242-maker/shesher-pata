@@ -4,6 +4,7 @@ import { Noto_Sans_Bengali } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from '../src/context/AppProviders';
 import { WhatsAppFloatingButton } from '../src/components/WhatsAppFloatingButton';
+import { getPublicSiteSettings } from '../src/lib/serverPublicData';
 
 const notoSansBengali = Noto_Sans_Bengali({
   subsets: ['bengali'],
@@ -58,11 +59,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const initialSettings = await getPublicSiteSettings();
+
   return (
     <html lang="bn" className={notoSansBengali.variable} suppressHydrationWarning>
       <body
@@ -85,7 +88,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             title="Google Tag Manager"
           />
         </noscript>
-        <AppProviders>
+        <AppProviders initialSettings={initialSettings}>
           {children}
           <WhatsAppFloatingButton />
         </AppProviders>
