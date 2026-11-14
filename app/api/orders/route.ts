@@ -149,17 +149,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'একটি বা একাধিক বই এখন আর অর্ডারের জন্য উপলব্ধ নেই।' }, { status: 409 });
     }
 
-    const validatedItems = normalizedItems.map((item: any) => {
+    const unavailableItem = normalizedItems.find((item: any) => {
       const book = liveBooks.find((candidate: any) => candidate.id === item.bookId);
-      if (!book || book.is_active === false || (book.status && book.status !== 'active')) {
-        throw new Error('একটি বা একাধিক বই বর্তমানে বিক্রির জন্য উপলব্ধ নেই।');
-      }
-      const stock = Number(book.stock ?? 0);
-      if (stock < item.quantity) {
-        throw new Error(`“${book.title_bn || book.bangla_name || book.title}” বইটির পর্যাপ্ত স্টক নেই।`);
-      }
+      return !book || book.is_active === false || Number(book.stock ?? 0) < item.quantity ||
+        !Number.isFinite(Number(book.price)) || Number(book.price) < 0;
+    });
+    if (unavailableItem) {
+      return NextResponse.json(
+        { error: 'একটি বা একাধিক বইয়ের স্টক বা মূল্য পরিবর্তিত হয়েছে। কার্ট আপডেট করে আবার চেষ্টা করুন।' },
+        { status: 409 }
+      );
+    }
+
+    const validatedItems = normalizedItems.map((item: any) => {
+      const book = liveBooks.find((candidate: any) => candidate.id === item.bookId)!;
       const price = Number(book.price);
-      if (!Number.isFinite(price) || price < 0) throw new Error('বইয়ের মূল্য যাচাই করা যায়নি।');
       return {
         book: {
           id: book.id,
