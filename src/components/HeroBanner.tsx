@@ -281,6 +281,11 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onExploreClick, onBuyNow
                       <img
                         src={currentSlide.imageUrl}
                         alt={currentSlide.altText || currentSlide.headline}
+                        width={640}
+                        height={400}
+                        loading="eager"
+                        fetchPriority="high"
+                        decoding="async"
                         className="w-full h-full object-cover"
                       />
                     </picture>
