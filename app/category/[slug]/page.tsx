@@ -8,7 +8,7 @@ import { getServerSupabaseClient } from '../../../src/lib/serverSupabase';
 import { rowToBook } from '../../../src/services/bookService';
 import { getBookSlug, transliterateBengaliToSlug } from '../../../src/utils/bookUrl';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\\/+$/, '');
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\/+$/, '');
 export const revalidate = 3600;
 
 interface PageProps {

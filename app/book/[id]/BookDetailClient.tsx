@@ -26,13 +26,10 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
   const router = useRouter();
   const { showToast } = useToast();
   const { addToCart } = useCart();
-  const { books, isBooksLoading } = useData();
+  const { books } = useData();
 
   // Pick live real-time book from DataContext so admin stock adjustments take immediate effect
-  const cachedBook = books.find((b) => b.id === book.id);
-  // Keep the server-fetched canonical book visible until the fresh catalog has loaded.
-  // A stale local cache can contain a different book with a reused legacy ID.
-  const liveBook = !isBooksLoading && cachedBook?.title === book.title ? cachedBook : book;
+  const liveBook = books.find((b) => b.id === book.id) || book;
   const liveAllBooks = books && books.length > 0 ? books : allBooks;
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);

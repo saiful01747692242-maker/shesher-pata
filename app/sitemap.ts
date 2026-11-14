@@ -4,7 +4,7 @@ import { BOOKS } from '../src/data/books';
 import { getBookSlug, transliterateBengaliToSlug } from '../src/utils/bookUrl';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\\/+$/, '');
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\/+$/, '');
 
   type SitemapBook = {
     id: string;
