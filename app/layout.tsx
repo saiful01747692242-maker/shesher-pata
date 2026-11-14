@@ -30,13 +30,9 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Shesher Pata' }],
   creator: 'Shesher Pata Team',
-  alternates: {
-    canonical: 'https://shesherpata.com',
-  },
   openGraph: {
     title: 'শেষের পাতা | বাংলা বইয়ের অনলাইন বুকশপ',
     description: 'শেষের পাতা থেকে বাংলা উপন্যাস, গল্প ও জনপ্রিয় লেখকদের বই সাশ্রয়ী দামে অর্ডার করুন। সারাদেশে হোম ডেলিভারি ও ক্যাশ অন ডেলিভারি সুবিধা।',
-    url: 'https://shesherpata.com',
     siteName: 'শেষের পাতা | Shesher Pata',
     images: [
       {
