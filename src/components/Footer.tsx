@@ -95,27 +95,33 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
                 "শেষের পাতা" — বাংলাদেশের সর্বাধিক নির্ভরযোগ্য অনলাইন বইয়ের দোকান। দেশি-বিদেশি অমর সাহিত্যকর্ম ও সাম্প্রতিক প্রকাশনা সরাসরি আপনার ঠিকানায়।
               </p>
 
-              {/* Social Circles */}
-              <div className="flex items-center gap-2 pt-1">
-                <a
-                  href={siteSettings?.facebook_url || "https://facebook.com"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#1877F2] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
-                  aria-label="ফেসবুক"
-                >
-                  <Facebook className="w-4 h-4" />
-                </a>
-                <a
-                  href={siteSettings?.instagram_url || "https://instagram.com"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#E4405F] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
-                  aria-label="ইনস্টাগ্রাম"
-                >
-                  <Instagram className="w-4 h-4" />
-                </a>
-              </div>
+              {/* Only show verified social profiles configured in site settings. */}
+              {(siteSettings?.facebook_url || siteSettings?.instagram_url) && (
+                <div className="flex items-center gap-2 pt-1">
+                  {siteSettings?.facebook_url && (
+                    <a
+                      href={siteSettings.facebook_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#1877F2] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                      aria-label="ফেসবুক"
+                    >
+                      <Facebook className="w-4 h-4" />
+                    </a>
+                  )}
+                  {siteSettings?.instagram_url && (
+                    <a
+                      href={siteSettings.instagram_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-[#E4405F] text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                      aria-label="ইনস্টাগ্রাম"
+                    >
+                      <Instagram className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              )}
 
               {/* Payment method - Cash on Delivery */}
               <div className="pt-2">
