@@ -204,9 +204,9 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onExploreClick, onBuyNow
                   </span>
                 </div>
 
-                <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-[#1E1B13] tracking-tight leading-tight">
+                <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-[#1E1B13] tracking-tight leading-tight">
                   {currentSlide.headline}
-                </h1>
+                </h2>
 
                 {currentSlide.subheadline && (
                   <p className="text-lg sm:text-2xl md:text-3xl font-extrabold text-[#2F2A1E]">
