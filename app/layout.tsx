@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'শেষের পাতা — আপনার পছন্দের সেরা বাংলা বইয়ের সংগ্রহ',
-    description: 'দেশি-বিদেশি অমর সাহিত্যকর্ম ও সাম্প্রতিক প্রকাশনা সরাসরি আপনার ঠিকানায়। হোম ডেলিভারি ও ক্যাশ অন ডেলিভারি সুবিধা!',
+    description: 'বাংলা উপন্যাস, থ্রিলার, ইসলামিক সাহিত্য ও বিশ্বসাহিত্যের নির্বাচিত বই। সাশ্রয়ী দাম, সারা দেশে হোম ডেলিভারি ও ক্যাশ অন ডেলিভারি সুবিধা।',
     url: 'https://shesherpata.com',
     siteName: 'শেষের পাতা | Shesher Pata',
     images: [
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'শেষের পাতা — অনলাইন বইয়ের দোকান',
-    description: 'শতভাগ আসল ও মানসম্মত বাংলা বই কিনুন আকর্ষণীয় ছাড়ে। সারাদেশে ক্যাশ অন ডেলিভারি!',
+    description: 'বাংলা বই ও জনপ্রিয় লেখকদের নির্বাচিত বই অনলাইনে কিনুন সাশ্রয়ী দামে। সারা দেশে ক্যাশ অন ডেলিভারি।',
     images: ['https://shesherpata.com/og-image.png'],
   },
   robots: {
