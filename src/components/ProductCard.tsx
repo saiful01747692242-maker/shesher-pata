@@ -4,6 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { ShoppingCart, Heart, Eye } from 'lucide-react';
 import { Book } from '../types';
+import { getBookUrl } from '../utils/bookUrl';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
@@ -113,12 +114,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="p-3.5 pt-3 flex flex-col flex-1 justify-between bg-white">
         <div>
           {/* Book Title */}
-          <h3
-            onClick={() => onOpenDetails(book)}
-            className="font-bold text-sm sm:text-[15px] text-[#221F17] hover:text-[#B45309] transition-colors line-clamp-1 cursor-pointer leading-snug"
-            title={book.title}
-          >
-            {book.title}
+          <h3 className="font-bold text-sm sm:text-[15px] text-[#221F17] hover:text-[#B45309] transition-colors line-clamp-1 leading-snug">
+            <a href={getBookUrl(book)} title={book.title} className="focus:outline-none focus-visible:underline">
+              {book.title}
+            </a>
           </h3>
 
           {/* Author */}
