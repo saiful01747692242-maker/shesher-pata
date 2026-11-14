@@ -27,7 +27,7 @@ interface BookDetailClientProps {
 export default function BookDetailClient({ book, allBooks }: BookDetailClientProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const { addToCart, isCartOpen } = useCart();
+  const { isCartOpen } = useCart();
   const { isWishlistOpen, setIsWishlistOpen } = useWishlist();
   const { books } = useData();
 
