@@ -15,10 +15,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const isAdmin = isRequestAuthorized(request);
-    const userId = searchParams.get('user_id');
-    const phone = searchParams.get('phone');
-    const email = searchParams.get('email');
-    const orderId = searchParams.get('order_id');
+    const orderId = searchParams.get('order_id')?.trim();
+    const phone = searchParams.get('phone')?.trim();
 
     const supabase = getServerSupabaseClient();
     if (!supabase) {
@@ -27,30 +25,31 @@ export async function GET(request: NextRequest) {
 
     let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
 
-    if (orderId) {
-      query = query.eq('id', orderId);
-    } else if (!isAdmin) {
-      const orConditions: string[] = [];
-      if (userId) orConditions.push(`user_id.eq.${userId}`);
-      if (email?.trim()) orConditions.push(`customer_email.eq.${email.trim().toLowerCase()}`);
-      if (phone?.trim()) orConditions.push(`customer_phone.eq.${phone.trim()}`);
-
-      if (orConditions.length === 0) {
-        return NextResponse.json({ success: true, orders: [] });
+    if (!isAdmin) {
+      // Public tracking requires BOTH order ID and the phone number used at checkout.
+      // Never expose orders by phone, email, or user ID alone.
+      if (!orderId || !phone) {
+        return NextResponse.json(
+          { success: false, error: 'অর্ডার নম্বর ও অর্ডারের সময় ব্যবহৃত মোবাইল নম্বর দিন।' },
+          { status: 400 }
+        );
       }
-      query = query.or(orConditions.join(','));
+      query = query.eq('id', orderId).eq('customer_phone', phone);
+    } else if (orderId) {
+      query = query.eq('id', orderId);
     }
 
     const { data, error } = await query;
     if (error) {
       console.error('[API /api/orders GET Error]:', error.message);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'অর্ডার খুঁজে পাওয়া যায়নি।' }, { status: 500 });
     }
 
+    // Return only the matching record for public tracking; admin retains full order access.
     return NextResponse.json({ success: true, orders: data || [] });
   } catch (err: any) {
     console.error('[API /api/orders GET Exception]:', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'অর্ডার খুঁজতে সমস্যা হয়েছে।' }, { status: 500 });
   }
 }
 
@@ -115,11 +114,131 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (existingOrder) {
-      return NextResponse.json({
-        success: true,
-        order: existingOrder,
-        message: 'অর্ডার ইতোমধ্যে ডাটাবেজে সংরক্ষিত রয়েছে',
-      });
+      // Do not disclose an existing customer's order to a caller reusing an order ID.
+      return NextResponse.json(
+        { success: false, error: 'এই অর্ডার নম্বরটি ইতোমধ্যে ব্যবহৃত হয়েছে। নতুন করে অর্ডার দিন।' },
+        { status: 409 }
+      );
+    }
+
+    // Recalculate every price and quantity from the live database.
+    // Never trust client-submitted book prices, stock, discounts, or totals.
+    const normalizedItems = items.map((item: any) => ({
+      bookId: String(item?.book?.id || ''),
+      quantity: Number(item?.quantity),
+    }));
+    if (
+      normalizedItems.some((item: any) =>
+        !item.bookId || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 50
+      )
+    ) {
+      return NextResponse.json({ error: 'বইয়ের তথ্য বা পরিমাণ সঠিক নয়।' }, { status: 400 });
+    }
+
+    const bookIds = [...new Set(normalizedItems.map((item: any) => item.bookId))];
+    if (bookIds.length !== normalizedItems.length) {
+      return NextResponse.json({ error: 'একই বই একাধিকবার পাঠানো হয়েছে।' }, { status: 400 });
+    }
+
+    const { data: liveBooks, error: booksError } = await supabase
+      .from('books')
+      .select('id, title, title_bn, bangla_name, author, price, original_price, image, cover_image, stock, is_active, status')
+      .in('id', bookIds);
+
+    if (booksError || !liveBooks || liveBooks.length !== bookIds.length) {
+      return NextResponse.json({ error: 'একটি বা একাধিক বই এখন আর অর্ডারের জন্য উপলব্ধ নেই।' }, { status: 409 });
+    }
+
+    const validatedItems = normalizedItems.map((item: any) => {
+      const book = liveBooks.find((candidate: any) => candidate.id === item.bookId);
+      if (!book || book.is_active === false || (book.status && book.status !== 'active')) {
+        throw new Error('একটি বা একাধিক বই বর্তমানে বিক্রির জন্য উপলব্ধ নেই।');
+      }
+      const stock = Number(book.stock ?? 0);
+      if (stock < item.quantity) {
+        throw new Error(`“${book.title_bn || book.bangla_name || book.title}” বইটির পর্যাপ্ত স্টক নেই।`);
+      }
+      const price = Number(book.price);
+      if (!Number.isFinite(price) || price < 0) throw new Error('বইয়ের মূল্য যাচাই করা যায়নি।');
+      return {
+        book: {
+          id: book.id,
+          title: book.title_bn || book.bangla_name || book.title,
+          author: book.author || '',
+          price,
+          originalPrice: Number(book.original_price) || price,
+          image: book.image || book.cover_image || '',
+          cover_image: book.cover_image || book.image || '',
+        },
+        quantity: item.quantity,
+      };
+    });
+
+    const calculatedSubtotal = validatedItems.reduce(
+      (sum: number, item: any) => sum + item.book.price * item.quantity, 0
+    );
+
+    let calculatedDiscount = 0;
+    let freeShipping = false;
+    if (couponCode) {
+      const cleanCode = String(couponCode).trim().toUpperCase();
+      const { data: coupon, error: couponError } = await supabase
+        .from('coupons')
+        .select('code, discount_type, discount_value, minimum_order_amount, maximum_discount_amount, usage_limit, used_count, starts_at, expires_at, is_active')
+        .ilike('code', cleanCode)
+        .maybeSingle();
+      const now = Date.now();
+      if (couponError || !coupon || !coupon.is_active ||
+          (coupon.starts_at && new Date(coupon.starts_at).getTime() > now) ||
+          (coupon.expires_at && new Date(coupon.expires_at).getTime() < now) ||
+          (coupon.usage_limit !== null && Number(coupon.used_count || 0) >= Number(coupon.usage_limit)) ||
+          calculatedSubtotal < Number(coupon.minimum_order_amount || 0)) {
+        return NextResponse.json({ error: 'কুপনটি আর বৈধ নয়। অনুগ্রহ করে কুপন সরিয়ে আবার অর্ডার দিন।' }, { status: 400 });
+      }
+      const value = Number(coupon.discount_value || 0);
+      if (coupon.discount_type === 'percentage') {
+        calculatedDiscount = Math.round(calculatedSubtotal * value / 100);
+        if (coupon.maximum_discount_amount !== null && Number(coupon.maximum_discount_amount) > 0) {
+          calculatedDiscount = Math.min(calculatedDiscount, Number(coupon.maximum_discount_amount));
+        }
+      } else if (coupon.discount_type === 'fixed') {
+        calculatedDiscount = Math.min(value, calculatedSubtotal);
+      } else if (coupon.discount_type === 'free_shipping') {
+        freeShipping = true;
+      } else {
+        return NextResponse.json({ error: 'কুপনের ধরন সমর্থিত নয়।' }, { status: 400 });
+      }
+    }
+
+    const deliveryOptionValue = deliveryOption === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka';
+    const { data: settings } = await supabase
+      .from('site_settings')
+      .select('delivery_charge_inside, delivery_charge_outside, free_delivery_threshold')
+      .limit(1)
+      .maybeSingle();
+    const freeThreshold = Number(settings?.free_delivery_threshold ?? 1500);
+    const configuredDelivery = deliveryOptionValue === 'outside_dhaka'
+      ? Number(settings?.delivery_charge_outside ?? 120)
+      : Number(settings?.delivery_charge_inside ?? 60);
+    const calculatedDeliveryFee = freeShipping || (freeThreshold > 0 && calculatedSubtotal >= freeThreshold)
+      ? 0
+      : Math.max(0, configuredDelivery);
+    const calculatedTotal = Math.max(0, calculatedSubtotal - calculatedDiscount + calculatedDeliveryFee);
+
+    const suppliedSubtotal = Number(subtotal);
+    const suppliedDiscount = Number(discountAmount || 0);
+    const suppliedDelivery = Number(deliveryFee);
+    const suppliedTotal = Number(total);
+    if (
+      !Number.isFinite(suppliedSubtotal) || Math.abs(suppliedSubtotal - calculatedSubtotal) > 0.01 ||
+      !Number.isFinite(suppliedDiscount) || Math.abs(suppliedDiscount - calculatedDiscount) > 0.01 ||
+      !Number.isFinite(suppliedDelivery) || Math.abs(suppliedDelivery - calculatedDeliveryFee) > 0.01 ||
+      !Number.isFinite(suppliedTotal) || Math.abs(suppliedTotal - calculatedTotal) > 0.01
+    ) {
+      return NextResponse.json(
+        { error: 'অর্ডারের মূল্য বা ডেলিভারি চার্জ পরিবর্তিত হয়েছে। পেজ রিফ্রেশ করে আবার চেষ্টা করুন।' },
+        { status: 409 }
+      );
     }
 
     const row = {
@@ -132,14 +251,14 @@ export async function POST(request: NextRequest) {
       district: district || 'ঢাকা',
       thana: thana || '',
       postal_code: postalCode || '',
-      delivery_option: deliveryOption || 'inside_dhaka',
-      delivery_fee: deliveryFee !== undefined && deliveryFee !== null ? Number(deliveryFee) : 60,
+      delivery_option: deliveryOptionValue,
+      delivery_fee: calculatedDeliveryFee,
       payment_method: paymentMethod || 'cod',
-      items: Array.isArray(items) ? items : [],
-      subtotal: Number(subtotal) || 0,
-      discount_amount: Number(discountAmount) || 0,
+      items: validatedItems,
+      subtotal: calculatedSubtotal,
+      discount_amount: calculatedDiscount,
       coupon_code: couponCode || null,
-      total: Number(total) || 0,
+      total: calculatedTotal,
       status: 'pending',
       order_notes: orderNotes || '',
       created_at: body.created_at || new Date().toISOString(),
