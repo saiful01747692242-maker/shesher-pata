@@ -136,14 +136,12 @@ export const orderService = {
   /**
    * Fetch customer orders by email, phone, or userId
    */
-  async fetchCustomerOrders(params: { userId?: string; email?: string; phone?: string; orderId?: string }): Promise<OrderDetails[]> {
+  async fetchCustomerOrders(params: { orderId: string; phone: string }): Promise<OrderDetails[]> {
     try {
-      const search = new URLSearchParams();
-      if (params.orderId) search.set('order_id', params.orderId);
-      if (params.userId) search.set('user_id', params.userId);
-      if (params.email) search.set('email', params.email);
-      if (params.phone) search.set('phone', params.phone);
-
+      const search = new URLSearchParams({
+        order_id: params.orderId.trim(),
+        phone: params.phone.trim(),
+      });
       const res = await fetch(`/api/orders?${search.toString()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data && Array.isArray(data.orders)) {
