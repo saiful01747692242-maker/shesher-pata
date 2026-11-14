@@ -147,7 +147,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 
       // Refresh reviews list
       setReviews((prev) => {
-        const filtered = prev.filter((r) => r.id !== res.review?.id && r.user_id !== res.review?.user_id);
+        const filtered = prev.filter((r) => r.id !== res.review?.id);
         return [res.review!, ...filtered];
       });
 
