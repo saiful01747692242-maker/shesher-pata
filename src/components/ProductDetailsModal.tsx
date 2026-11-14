@@ -279,6 +279,11 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                 <img
                   src={activeImage}
                   alt={book.title}
+                  width={280}
+                  height={373}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
                 {book.discount > 0 && (
@@ -878,6 +883,10 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                       <img
                         src={relBook.image}
                         alt={relBook.title}
+                        width={160}
+                        height={213}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
                     </div>
