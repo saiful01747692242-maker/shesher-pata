@@ -29,7 +29,7 @@ import { NAV_ITEMS } from '../src/components/Navigation';
 import { getCategoryDisplayName, normalizeBengali, CANONICAL_CATEGORIES, isAllCategory } from '../src/utils/filterUtils';
 import { getBookSlug } from '../src/utils/bookUrl';
 
-export default function HomePage() {
+export default function HomePage({ children }: { children?: React.ReactNode }) {
   const router = useRouter();
   const { showToast } = useToast();
   const { addToCart } = useCart();
@@ -313,6 +313,8 @@ export default function HomePage() {
           </div>
         )}
       </main>
+
+      {children}
 
       {/* Footer */}
       <Footer
