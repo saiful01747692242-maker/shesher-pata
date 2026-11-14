@@ -15,7 +15,7 @@ const notoSansBengali = Noto_Sans_Bengali({
 export const metadata: Metadata = {
   metadataBase: new URL('https://shesherpata.com'),
   title: 'শেষের পাতা — অনলাইন বইয়ের দোকান | Shesher Pata Online Bookshop',
-  description: 'শেষের পাতা - বাংলাদেশের সর্বাধিক বিশ্বস্ত অনলাইন বইয়ের দোকান। রবীন্দ্রনাথ, নজরুল, হুমায়ূন আহমেদ, ফেলুদা সহ সকল সেরা লেখকের ক্লাসিক ও নতুন বই কিনুন সেরা অফারে।',
+  description: 'বাংলা উপন্যাস, থ্রিলার, ইসলামিক সাহিত্য ও বিশ্বসাহিত্যের নির্বাচিত বই অনলাইনে কিনুন। সাশ্রয়ী দাম, জনপ্রিয় লেখকদের বই এবং সারা দেশে ক্যাশ অন ডেলিভারি.',
   keywords: [
     'শেষের পাতা',
     'Shesher Pata',
