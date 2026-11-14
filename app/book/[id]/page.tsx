@@ -47,33 +47,35 @@ function resolveBookOgImage(book: Book | null): string {
   return `${supabaseUrl}/storage/v1/object/public/book-covers/${cleanPath}`;
 }
 
+function getBookSeoName(book: Book): string {
+  const source = (book.title_bn || book.bangla_name || book.title || 'বই').trim();
+  const primary = source.split(/\\s+\\|\\s+/)[0].trim();
+  // Prefer the Bengali book name over a duplicated Romanized title suffix.
+  return /[\\u0980-\\u09FF]/.test(primary) ? primary : source;
+}
+
 function getBookDescription(book: Book): string {
-  const clean = (book.description || '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/\s+/g, ' ')
+  const clean = (book.description_bn || book.description || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\\s+/g, ' ')
     .trim();
 
-  // Keep a useful piece of the book synopsis, but add purchase-relevant facts
-  // so search snippets explain who wrote it and where it can be ordered.
   const details = [
     book.author ? `লেখক: ${book.author}` : '',
-    book.publisher ? `প্রকাশক: ${book.publisher}` : '',
-    book.price ? `মূল্য: ৳${book.price}` : '',
-    'শেষের পাতা থেকে অর্ডার করুন',
+    Number(book.price) > 0 ? `দাম: ৳${Number(book.price)}` : '',
   ].filter(Boolean).join(' • ');
-
-  if (clean.length > 20) {
-    const available = Math.max(45, 158 - details.length - 1);
-    const summary = clean.length > available
-      ? `${clean.substring(0, available).replace(/[\\s,।;:-]+$/, '')}…`
-      : clean;
-    return `${summary} ${details}`.trim();
-  }
-
-  const parts = [`"${book.title}"`];
-  if (book.category) parts.push(`বিভাগ: ${book.category}`);
-  if (details) parts.push(details);
-  return parts.join(' • ');
+  const callToAction = 'শেষের পাতা থেকে অর্ডার করুন';
+  const tail = [details, callToAction].filter(Boolean).join(' • ');
+  const maxLength = 160;
+  const availableSummary = Math.max(0, maxLength - tail.length - (tail ? 1 : 0));
+  const source = clean || `${getBookSeoName(book)} বইয়ের বিস্তারিত ও অর্ডারের তথ্য দেখুন।`;
+  const summary = source.length > availableSummary
+    ? `${source.slice(0, Math.max(0, availableSummary - 1)).trimEnd()}…`
+    : source;
+  const result = [summary, tail].filter(Boolean).join(' ');
+  return result.length > maxLength
+    ? `${result.slice(0, maxLength - 1).trimEnd()}…`
+    : result;
 }
 
 const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
@@ -129,12 +131,10 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
 
 function getBookPageTitle(book: Book): string {
   const brand = ' | শেষের পাতা';
-  const title = (book.title || 'বই').trim();
+  const title = getBookSeoName(book);
   const author = (book.author || '').trim();
   const withAuthor = `${title}${author ? ` — ${author}` : ''}${brand}`;
 
-  // Keep the complete book title whenever possible; the author is secondary
-  // when both cannot fit within a search-friendly 60-character title.
   if (withAuthor.length <= 60) return withAuthor;
   if (title.length + brand.length <= 60) return `${title}${brand}`;
 
@@ -236,7 +236,7 @@ export default async function BookPage({ params }: PageProps) {
   const supabase = getServerSupabaseClient();
   if (supabase) {
     try {
-      const { data } = await supabase.from('books').select('*').limit(30);
+      const { data } = await supabase.from('books').select('id, slug, title, title_bn, bangla_name, english_name, author, publisher, category, image, cover_image, price, original_price, old_price, discount, rating, review_count, stock, isbn, pages, edition, language, tags, is_bestseller, is_new, is_new_release, is_featured, featured, is_international, is_active, status, section_ids, created_at, updated_at').limit(30);
       if (data && data.length > 0) {
         allBooks = data.map(rowToBook);
       }
@@ -249,29 +249,36 @@ export default async function BookPage({ params }: PageProps) {
   const bookPageUrl = getBookUrl(book, SITE_URL);
 
 
-  // JSON-LD structured data for Google Books Rich Snippets
+  // Book + Product structured data helps search engines understand the title and its offer.
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Book',
-    name: book.title,
-    url: bookPageUrl,
-    author: {
-      '@type': 'Person',
-      name: book.author,
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: book.publisher,
-    },
-    image: bookImageUrl,
-    isbn: book.isbn,
-    offers: {
-      '@type': 'Offer',
-      priceCurrency: 'BDT',
-      price: book.price,
-      availability: book.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      url: bookPageUrl,
-    },
+    '@graph': [
+      {
+        '@type': 'Book',
+        name: getBookSeoName(book),
+        url: bookPageUrl,
+        author: book.author ? { '@type': 'Person', name: book.author } : undefined,
+        publisher: book.publisher ? { '@type': 'Organization', name: book.publisher } : undefined,
+        image: bookImageUrl,
+        isbn: book.isbn || undefined,
+      },
+      {
+        '@type': 'Product',
+        name: getBookSeoName(book),
+        description,
+        image: [bookImageUrl],
+        sku: book.id,
+        brand: book.publisher ? { '@type': 'Brand', name: book.publisher } : undefined,
+        offers: Number(book.price) > 0 ? {
+          '@type': 'Offer',
+          url: bookPageUrl,
+          priceCurrency: 'BDT',
+          price: Number(book.price),
+          availability: Number(book.stock) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+          seller: { '@type': 'Organization', name: 'শেষের পাতা', url: SITE_URL },
+        } : undefined,
+      },
+    ],
   };
 
   return (
