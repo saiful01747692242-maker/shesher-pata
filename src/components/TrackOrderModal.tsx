@@ -15,7 +15,8 @@ interface TrackOrderModalProps {
 
 export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClose }) => {
   const { orders } = useData();
-  const [query, setQuery] = useState('');
+  const [orderId, setOrderId] = useState('');
+  const [phone, setPhone] = useState('');
   const [searched, setSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [matchedOrder, setMatchedOrder] = useState<OrderDetails | null>(null);
@@ -24,10 +25,11 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim()) return;
-    const q = query.trim().toLowerCase();
+    if (!orderId.trim() || !phone.trim()) return;
+    const normalizedOrderId = orderId.trim().toLowerCase();
+    const normalizedPhone = phone.trim().replace(/\\s+/g, '');
     const found = orders.find(
-      (o) => o.orderId.toLowerCase() === q || o.phone.toLowerCase() === q
+      (o) => o.orderId.toLowerCase() === normalizedOrderId && o.phone.replace(/\\s+/g, '') === normalizedPhone
     );
     if (found) {
       setMatchedOrder(found);
@@ -38,8 +40,8 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
     setIsLoading(true);
     try {
       const serverOrders = await orderService.fetchCustomerOrders({
-        orderId: query.trim(),
-        phone: query.trim(),
+        orderId: orderId.trim(),
+        phone: phone.trim(),
       });
       if (serverOrders && serverOrders.length > 0) {
         setMatchedOrder(serverOrders[0]);
@@ -89,13 +91,24 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
         </div>
 
         <form onSubmit={handleTrack} className="flex gap-2 mb-6">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="অর্ডার নম্বর (যেমন: SP-2026-89421)"
-            className="flex-1 px-3.5 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
-          />
+          <div className="flex-1 space-y-2">
+            <input
+              type="text"
+              value={orderId}
+              onChange={(e) => setOrderId(e.target.value)}
+              placeholder="অর্ডার নম্বর (যেমন: SP-2026-89421)"
+              required
+              className="w-full px-3.5 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
+            />
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="অর্ডারের সময় ব্যবহৃত মোবাইল নম্বর"
+              required
+              className="w-full px-3.5 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
+            />
+          </div>
           <button
             type="submit"
             disabled={isLoading}
@@ -218,7 +231,7 @@ export const TrackOrderModal: React.FC<TrackOrderModalProps> = ({ isOpen, onClos
             <div className="text-center py-6 text-zinc-500 text-xs space-y-2">
               <AlertCircle className="w-8 h-8 mx-auto text-amber-500" />
               <p className="font-bold text-zinc-800">কোনো অর্ডার পাওয়া যায়নি!</p>
-              <p className="text-zinc-400">"{query}" নম্বর দিয়ে কোনো অর্ডার নথিভুক্ত নেই। সঠিক নম্বর লিখে আবার চেষ্টা করুন।</p>
+              <p className="text-zinc-400">"{orderId}" নম্বর দিয়ে কোনো অর্ডার নথিভুক্ত নেই। সঠিক নম্বর লিখে আবার চেষ্টা করুন।</p>
             </div>
           )
         ) : (
