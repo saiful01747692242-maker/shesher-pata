@@ -666,14 +666,14 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                       className="p-5 rounded-2xl border border-zinc-200 bg-white shadow-2xs space-y-3"
                     >
                       <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-zinc-900 flex items-center gap-1.5">
+                        <h2 className="text-sm font-bold text-zinc-900 flex items-center gap-1.5">
                           <Star className="w-4 h-4 text-amber-500 fill-current" />
                           <span>
                             {alreadyReviewed
                               ? 'আপনার পূর্ববর্তী রিভিউ সম্পাদনা করুন'
                               : 'বইটি সম্পর্কে আপনার রিভিউ লিখুন'}
                           </span>
-                        </h4>
+                        </h2>
                         <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                           ✓ ভেরিফায়েড ক্রেতা
                         </span>
@@ -794,9 +794,9 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 
                   {/* Reviews List */}
                   <div className="space-y-3 pt-2">
-                    <h4 className="font-bold text-sm text-zinc-900 border-b border-zinc-100 pb-2">
+                    <h2 className="font-bold text-sm text-zinc-900 border-b border-zinc-100 pb-2">
                       পাঠকদের মন্তব্য ({toBengaliNumber(reviews.length)})
-                    </h4>
+                    </h2>
 
                     {reviewsLoading ? (
                       <div className="p-8 text-center text-zinc-400 flex items-center justify-center gap-2">
@@ -858,9 +858,9 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
           {/* Related Books */}
           {relatedBooks.length > 0 && (
             <div className="border-t border-zinc-200 pt-6">
-              <h3 className="text-lg font-bold text-zinc-900 mb-3">
+              <h2 className="text-lg font-bold text-zinc-900 mb-3">
                 সম্পর্কিত বইসমূহ
-              </h3>
+              </h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {relatedBooks.map((relBook) => (
                   <a
@@ -881,9 +881,9 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
                     </div>
-                    <h4 className="text-xs font-bold text-zinc-900 truncate group-hover:text-amber-800">
+                    <h3 className="text-xs font-bold text-zinc-900 truncate group-hover:text-amber-800">
                       {relBook.title}
-                    </h4>
+                    </h3>
                     <p className="text-[10px] text-zinc-500 truncate">{relBook.author}</p>
                     <span className="text-xs font-black text-amber-800 mt-1 block">
                       {formatPrice(relBook.price)}
