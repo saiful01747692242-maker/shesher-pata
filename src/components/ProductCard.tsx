@@ -66,15 +66,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </button>
 
       {/* Top Book Image Container (Off-white / cream background + Golden Bottom Divider) */}
-      <Link
-        href={`/book/${encodeURIComponent(getBookSlug(book))}`}
-        onClick={(event) => {
-          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          onOpenDetails(book);
-        }}
-        className="relative aspect-[3/4] w-full bg-[#FAF7F0] p-4 flex items-center justify-center cursor-pointer border-b-[3.5px] border-[#DEB038]"
-      >
+      <div className="relative aspect-[3/4] w-full bg-[#FAF7F0] p-4 flex items-center justify-center border-b-[3.5px] border-[#DEB038]">
+        <Link
+          href={`/book/${encodeURIComponent(getBookSlug(book))}`}
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            onOpenDetails(book);
+          }}
+          className="relative h-full w-auto max-w-full flex items-center justify-center"
+        >
         <img
           src={book.image || book.cover_image}
           alt={book.title}
@@ -83,6 +84,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           }`}
           loading="lazy"
         />
+
+        </Link>
 
         {/* Quick View and Buy Now Buttons on Desktop Hover */}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center gap-1.5 pointer-events-none p-2">
@@ -109,7 +112,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span>এখনই কিনুন</span>
             </button>
           )}
-        </Link>
+  
       </div>
 
       {/* Book Information Section */}
