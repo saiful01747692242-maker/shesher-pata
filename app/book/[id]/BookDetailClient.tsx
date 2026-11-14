@@ -1,21 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Book, CartItem } from '../../../src/types';
 import { Header } from '../../../src/components/Header';
 import { Footer } from '../../../src/components/Footer';
 import { ProductDetailsModal } from '../../../src/components/ProductDetailsModal';
-import { CartDrawer } from '../../../src/components/CartDrawer';
-import { WishlistDrawer } from '../../../src/components/WishlistDrawer';
-import { CheckoutModal } from '../../../src/components/CheckoutModal';
-import { TrackOrderModal } from '../../../src/components/TrackOrderModal';
-import { AccountModal } from '../../../src/components/AccountModal';
 import { useCart } from '../../../src/context/CartContext';
+import { useWishlist } from '../../../src/context/WishlistContext';
 import { useToast } from '../../../src/context/ToastContext';
 import { useRouter } from 'next/navigation';
 import { trackSearch } from '../../../src/utils/metaPixel';
 import { useData } from '../../../src/context/DataContext';
 import { getBookSlug } from '../../../src/utils/bookUrl';
+
+const CartDrawer = dynamic(() => import('../../../src/components/CartDrawer').then((m) => m.CartDrawer), { ssr: false });
+const WishlistDrawer = dynamic(() => import('../../../src/components/WishlistDrawer').then((m) => m.WishlistDrawer), { ssr: false });
+const TrackOrderModal = dynamic(() => import('../../../src/components/TrackOrderModal').then((m) => m.TrackOrderModal), { ssr: false });
+const AccountModal = dynamic(() => import('../../../src/components/AccountModal').then((m) => m.AccountModal), { ssr: false });
 
 interface BookDetailClientProps {
   book: Book;
@@ -25,7 +27,8 @@ interface BookDetailClientProps {
 export default function BookDetailClient({ book, allBooks }: BookDetailClientProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const { addToCart } = useCart();
+  const { addToCart, isCartOpen } = useCart();
+  const { isWishlistOpen, setIsWishlistOpen } = useWishlist();
   const { books } = useData();
 
   // Only use a cached/live record when it is demonstrably the same book as the
@@ -41,8 +44,6 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
   const liveBook = matchingLiveBook || book;
   const liveAllBooks = books && books.length > 0 ? books : allBooks;
 
-  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [buyNowItem, setBuyNowItem] = useState<CartItem | null>(null);
   const [isTrackOrderOpen, setIsTrackOrderOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
 
@@ -108,53 +109,41 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
         onOpenTrackOrder={() => setIsTrackOrderOpen(true)}
       />
 
-      <CartDrawer
-        onProceedToCheckout={() => {
-          setBuyNowItem(null);
-          try {
-            sessionStorage.removeItem('shesher_pata_buy_now');
-          } catch {}
-          router.push('/checkout');
-        }}
-        onExploreBooks={() => router.push('/')}
-      />
+      {isCartOpen && (
+        <CartDrawer
+          onProceedToCheckout={() => router.push('/checkout')}
+          onExploreBooks={() => router.push('/')}
+        />
+      )}
 
-      <WishlistDrawer
-        onExploreBooks={() => router.push('/')}
-        onOpenDetails={(b) => router.push(`/book/${getBookSlug(b)}`)}
-      />
+      {isWishlistOpen && (
+        <WishlistDrawer
+          onExploreBooks={() => router.push('/')}
+          onOpenDetails={(b) => router.push(`/book/${getBookSlug(b)}`)}
+        />
+      )}
 
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        directItem={buyNowItem}
-        onClose={() => {
-          setIsCheckoutOpen(false);
-          setBuyNowItem(null);
-          try {
-            sessionStorage.removeItem('shesher_pata_buy_now');
-          } catch {}
-        }}
-        onOrderSuccess={() => {
-          setIsCheckoutOpen(false);
-          setBuyNowItem(null);
-          try {
-            sessionStorage.removeItem('shesher_pata_buy_now');
-          } catch {}
-          showToast('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে!', 'success');
-        }}
-      />
+      {isTrackOrderOpen && (
+        <TrackOrderModal
+          isOpen={true}
+          onClose={() => setIsTrackOrderOpen(false)}
+        />
+      )}
 
-      <TrackOrderModal
-        isOpen={isTrackOrderOpen}
-        onClose={() => setIsTrackOrderOpen(false)}
-      />
-
-      <AccountModal
-        isOpen={isAccountOpen}
-        onClose={() => setIsAccountOpen(false)}
-        onOpenOrders={() => setIsTrackOrderOpen(true)}
-        onOpenWishlist={() => {}}
-      />
+      {isAccountOpen && (
+        <AccountModal
+          isOpen={true}
+          onClose={() => setIsAccountOpen(false)}
+          onOpenOrders={() => {
+            setIsAccountOpen(false);
+            setIsTrackOrderOpen(true);
+          }}
+          onOpenWishlist={() => {
+            setIsAccountOpen(false);
+            setIsWishlistOpen(true);
+          }}
+        />
+      )}
     </div>
   );
 }
