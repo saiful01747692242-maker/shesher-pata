@@ -28,8 +28,17 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
   const { addToCart } = useCart();
   const { books } = useData();
 
-  // Pick live real-time book from DataContext so admin stock adjustments take immediate effect
-  const liveBook = books.find((b) => b.id === book.id) || book;
+  // Only use a cached/live record when it is demonstrably the same book as the
+  // server-fetched record. A stale browser cache can contain a reused ID with
+  // different title/slug data; allowing it to override the server record makes
+  // the visible H1 disagree with the canonical title and Book/Product JSON-LD.
+  const matchingLiveBook = books.find(
+    (b) =>
+      b.id === book.id &&
+      b.title === book.title &&
+      getBookSlug(b) === getBookSlug(book)
+  );
+  const liveBook = matchingLiveBook || book;
   const liveAllBooks = books && books.length > 0 ? books : allBooks;
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
