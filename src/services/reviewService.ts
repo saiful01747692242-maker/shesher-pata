@@ -31,7 +31,7 @@ export const reviewService = {
         return {
           success: false,
           reviews: [],
-          rating: 5.0,
+          rating: 0,
           count: 0,
           error: data.error || 'রিভিউ লোড করতে ব্যর্থ হয়েছে',
         };
