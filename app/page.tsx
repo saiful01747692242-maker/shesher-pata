@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useToast } from '../src/context/ToastContext';
 import { useCart } from '../src/context/CartContext';
@@ -18,22 +19,25 @@ import { Footer } from '../src/components/Footer';
 import { MobileBottomNav } from '../src/components/MobileBottomNav';
 
 // Shared Drawers and Modals
-import { ProductDetailsModal } from '../src/components/ProductDetailsModal';
-import { QuickViewModal } from '../src/components/QuickViewModal';
-import { CartDrawer } from '../src/components/CartDrawer';
-import { WishlistDrawer } from '../src/components/WishlistDrawer';
-import { CheckoutModal } from '../src/components/CheckoutModal';
-import { TrackOrderModal } from '../src/components/TrackOrderModal';
-import { AccountModal } from '../src/components/AccountModal';
 import { NAV_ITEMS } from '../src/components/Navigation';
 import { getCategoryDisplayName, normalizeBengali, CANONICAL_CATEGORIES, isAllCategory } from '../src/utils/filterUtils';
 import { getBookSlug } from '../src/utils/bookUrl';
 
+
+// Keep infrequently used overlays out of the initial homepage JavaScript bundle.
+const ProductDetailsModal = dynamic(() => import('../src/components/ProductDetailsModal').then((m) => m.ProductDetailsModal), { ssr: false });
+const QuickViewModal = dynamic(() => import('../src/components/QuickViewModal').then((m) => m.QuickViewModal), { ssr: false });
+const CartDrawer = dynamic(() => import('../src/components/CartDrawer').then((m) => m.CartDrawer), { ssr: false });
+const WishlistDrawer = dynamic(() => import('../src/components/WishlistDrawer').then((m) => m.WishlistDrawer), { ssr: false });
+const CheckoutModal = dynamic(() => import('../src/components/CheckoutModal').then((m) => m.CheckoutModal), { ssr: false });
+const TrackOrderModal = dynamic(() => import('../src/components/TrackOrderModal').then((m) => m.TrackOrderModal), { ssr: false });
+const AccountModal = dynamic(() => import('../src/components/AccountModal').then((m) => m.AccountModal), { ssr: false });
+
 export default function HomePage() {
   const router = useRouter();
   const { showToast } = useToast();
-  const { addToCart } = useCart();
-  const { setIsWishlistOpen } = useWishlist();
+  const { addToCart, isCartOpen } = useCart();
+  const { setIsWishlistOpen, isWishlistOpen } = useWishlist();
   const { books, siteSettings, categories } = useData();
 
   // Navigation state
@@ -337,7 +341,7 @@ export default function HomePage() {
       />
 
       {/* Drawers and Modals */}
-      <CartDrawer
+      {isCartOpen && <CartDrawer
         onProceedToCheckout={() => {
           setBuyNowItem(null);
           try {
@@ -349,15 +353,15 @@ export default function HomePage() {
           setCurrentNav('books');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-      />
+      />}
 
-      <WishlistDrawer
+      {isWishlistOpen && <WishlistDrawer
         onExploreBooks={() => {
           setCurrentNav('books');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         onOpenDetails={handleOpenBookDetails}
-      />
+      />}
 
       {selectedBookForDetails && (
         <ProductDetailsModal
@@ -385,7 +389,7 @@ export default function HomePage() {
         />
       )}
 
-      <CheckoutModal
+      {isCheckoutOpen && <CheckoutModal
         isOpen={isCheckoutOpen}
         directItem={buyNowItem}
         onClose={() => {
@@ -403,15 +407,15 @@ export default function HomePage() {
           } catch {}
           showToast('ধন্যবাদ! আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে।', 'success');
         }}
-      />
+      />}
 
-      <TrackOrderModal
-        isOpen={isTrackOrderOpen}
+      {isTrackOrderOpen && <TrackOrderModal
+        isOpen={true}
         onClose={() => setIsTrackOrderOpen(false)}
-      />
+      />}
 
-      <AccountModal
-        isOpen={isAccountOpen}
+      {isAccountOpen && <AccountModal
+        isOpen={true}
         onClose={() => setIsAccountOpen(false)}
         onOpenOrders={() => {
           setIsAccountOpen(false);
@@ -421,7 +425,7 @@ export default function HomePage() {
           setIsAccountOpen(false);
           setIsWishlistOpen(true);
         }}
-      />
+      />}
     </div>
   );
 }
