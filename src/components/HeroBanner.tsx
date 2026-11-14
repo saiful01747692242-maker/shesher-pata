@@ -176,8 +176,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onExploreClick, onBuyNow
           <div
             className="absolute inset-0 pointer-events-none opacity-30 bg-repeat bg-[length:320px_auto]"
             style={{
-              backgroundImage: 'url("/images/background.png")',
-              backgroundPosition: 'top left',
+              backgroundImage: 'radial-gradient(circle at 18% 22%, rgba(229,169,19,0.12), transparent 42%), radial-gradient(circle at 82% 76%, rgba(229,169,19,0.08), transparent 46%)',
             }}
           />
 
