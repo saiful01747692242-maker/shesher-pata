@@ -33,6 +33,7 @@ const loadPublicBooks = unstable_cache(
         .from('books')
         .select(BOOK_LIST_COLUMNS)
         .eq('is_active', true)
+        .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(500);
       if (error || !data) return [];
