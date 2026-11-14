@@ -30,38 +30,36 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
   onSelectCategory,
   activeCategoryId,
 }) => {
-  const { categories, books } = useData();
+  const { categories, books, isBooksLoading } = useData();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Derive visible category counts from the current book catalog instead of stale manual counters.
+  // Build category cards only from the fresh catalog so every linked category has real books.
   const displayCategories = React.useMemo(() => {
-    const sourceCategories = categories && categories.length > 0
-      ? categories
-      : QUICK_CATEGORIES.map((category) => ({
-          id: category.id,
-          name: category.name,
-          imageUrl: category.image,
-        }));
+    if (isBooksLoading || !books || books.length === 0) return [];
 
-    return sourceCategories
-      .map((liveCat) => {
-        const quick = QUICK_CATEGORIES.find(
-          (item) => item.id === liveCat.id || matchesCategory(liveCat.name, [], item.id, categories)
-        );
-        const categoryKey = normalizeBengali(liveCat.name);
-        const bookCount = (books || []).filter(
-          (book) => normalizeBengali(book.category || '') === categoryKey
-        ).length;
+    const categoryNames = Array.from(
+      new Set(books.map((book) => book.category?.trim()).filter((name): name is string => Boolean(name)))
+    );
 
-        return {
-          id: liveCat.id,
-          name: liveCat.name,
-          bookCount,
-          image: liveCat.imageUrl || (liveCat as any).image || quick?.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=160&q=80',
-        };
-      })
-      .filter((category) => category.bookCount > 0);
-  }, [categories, books]);
+    return categoryNames.map((name) => {
+      const liveCat = (categories || []).find(
+        (category) => normalizeBengali(category.name) === normalizeBengali(name)
+      );
+      const quick = QUICK_CATEGORIES.find((item) =>
+        matchesCategory(name, [], item.id, categories)
+      );
+      const bookCount = books.filter(
+        (book) => normalizeBengali(book.category || '') === normalizeBengali(name)
+      ).length;
+
+      return {
+        id: liveCat?.id || quick?.id || transliterateBengaliToSlug(name),
+        name,
+        bookCount,
+        image: liveCat?.imageUrl || (liveCat as any)?.image || quick?.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=160&q=80',
+      };
+    });
+  }, [categories, books, isBooksLoading]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
