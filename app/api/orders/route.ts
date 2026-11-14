@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'ডাটাবেজ সার্ভিস অনুপলব্ধ' }, { status: 503 });
     }
 
-    let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
+    const privateHeaders = { headers: { 'Cache-Control': 'private, no-store, max-age=0' } };
 
     if (!isAdmin) {
       // Public tracking requires BOTH order ID and the phone number used at checkout.
@@ -31,22 +31,42 @@ export async function GET(request: NextRequest) {
       if (!orderId || !phone) {
         return NextResponse.json(
           { success: false, error: 'অর্ডার নম্বর ও অর্ডারের সময় ব্যবহৃত মোবাইল নম্বর দিন।' },
-          { status: 400 }
+          { status: 400, headers: { 'Cache-Control': 'private, no-store, max-age=0' } }
         );
       }
-      query = query.eq('id', orderId).eq('customer_phone', phone);
-    } else if (orderId) {
-      query = query.eq('id', orderId);
+
+      const { data: order, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .maybeSingle();
+      if (error) {
+        console.error('[API /api/orders GET Error]:', error.message);
+        return NextResponse.json({ error: 'অর্ডার খুঁজে পাওয়া যায়নি।' }, { status: 500, headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+      }
+
+      const toDigits = (value: string) =>
+        String(value || '')
+          .replace(/[০-৯]/g, (digit) => String('০১২৩৪৫৬৭৮৯'.indexOf(digit)))
+          .replace(/\\D/g, '');
+      const phoneMatches = Boolean(order) && toDigits(order.customer_phone) === toDigits(phone);
+
+      return NextResponse.json(
+        { success: true, orders: phoneMatches ? [order] : [] },
+        privateHeaders
+      );
     }
+
+    let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
+    if (orderId) query = query.eq('id', orderId);
 
     const { data, error } = await query;
     if (error) {
       console.error('[API /api/orders GET Error]:', error.message);
-      return NextResponse.json({ error: 'অর্ডার খুঁজে পাওয়া যায়নি।' }, { status: 500 });
+      return NextResponse.json({ error: 'অর্ডার খুঁজে পাওয়া যায়নি।' }, { status: 500, headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
     }
 
-    // Return only the matching record for public tracking; admin retains full order access.
-    return NextResponse.json({ success: true, orders: data || [] }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+    return NextResponse.json({ success: true, orders: data || [] }, privateHeaders);
   } catch (err: any) {
     console.error('[API /api/orders GET Exception]:', err);
     return NextResponse.json({ error: 'অর্ডার খুঁজতে সমস্যা হয়েছে।' }, { status: 500 });
