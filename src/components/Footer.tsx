@@ -248,12 +248,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenTrackOrder }) 
               <div className="space-y-2.5 text-xs text-zinc-400">
                 <div className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 text-[#E5A913] shrink-0 mt-0.5" />
-                  <span>{siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫'}</span>
+                  <span>{siteSettings?.address || 'Mirpur 14, Dhaka, Bangladesh'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-[#E5A913] shrink-0" />
                   <span>
-                    হটলাইন: {siteSettings?.phone || '০১৭০০-০০০০০০'}
+                    হটলাইন: {siteSettings?.phone || '+8801747692242'}
                     {siteSettings?.alt_phone ? ` / ${siteSettings.alt_phone}` : ''}
                   </span>
                 </div>
