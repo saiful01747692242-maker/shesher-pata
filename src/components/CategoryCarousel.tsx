@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useRef } from 'react';
+import Link from 'next/link';
 import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { matchesCategory, normalizeBengali, isAllCategory } from '../utils/filterUtils';
+import { transliterateBengaliToSlug } from '../utils/bookUrl';
+import { toBengaliNumber } from '../utils/formatters';
 
 interface CategoryCarouselProps {
   onSelectCategory: (categoryId: string) => void;
@@ -28,28 +31,39 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
   onSelectCategory,
   activeCategoryId,
 }) => {
-  const { categories } = useData();
+  const { categories, books } = useData();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Blend static carousel metadata with live categories from database
-  // If live categories exist, prefer live categories so any custom admin categories show up
+  // Derive visible category counts from the current book catalog instead of stale manual counters.
   const displayCategories = React.useMemo(() => {
-    if (categories && categories.length > 0) {
-      return categories.map((liveCat) => {
+    const sourceCategories = categories && categories.length > 0
+      ? categories
+      : QUICK_CATEGORIES.map((category) => ({
+          id: category.id,
+          name: category.name,
+          imageUrl: category.image,
+        }));
+
+    return sourceCategories
+      .map((liveCat) => {
         const quick = QUICK_CATEGORIES.find(
-          (q) => q.id === liveCat.id || matchesCategory(liveCat.name, [], q.id, categories)
+          (item) => item.id === liveCat.id || matchesCategory(liveCat.name, [], item.id, categories)
         );
+        const categoryKey = normalizeBengali(liveCat.name);
+        const bookCount = (books || []).filter(
+          (book) => normalizeBengali(book.category || '') === categoryKey
+        ).length;
+
         return {
           id: liveCat.id,
           name: liveCat.name,
-          count: quick?.count || '৫০+',
+          bookCount,
+          count: `${toBengaliNumber(bookCount)}টি বই`,
           image: liveCat.imageUrl || (liveCat as any).image || quick?.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=160&q=80',
         };
-      });
-    }
-
-    return QUICK_CATEGORIES;
-  }, [categories]);
+      })
+      .filter((category) => category.bookCount > 0);
+  }, [categories, books]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -124,6 +138,13 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
                   {cat.name}
                 </h3>
                 <span className="text-[9px] text-zinc-400 font-normal mt-0.5">{cat.count}</span>
+                <Link
+                  href={`/category/${encodeURIComponent(transliterateBengaliToSlug(cat.name))}`}
+                  onClick={(event) => event.stopPropagation()}
+                  className="mt-0.5 text-[9px] font-bold text-amber-700 hover:underline"
+                >
+                  বই দেখুন
+                </Link>
               </div>
             );
           })}
