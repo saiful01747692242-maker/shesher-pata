@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { cache } from 'react';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { BOOKS } from '../../../src/data/books';
@@ -76,7 +76,7 @@ function getBookDescription(book: Book): string {
   return parts.join(' • ');
 }
 
-async function fetchBook(identifier: string): Promise<Book | null> {
+const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
   const decoded = decodeURIComponent(identifier || '').trim();
   if (!decoded) return null;
 
@@ -125,6 +125,19 @@ async function fetchBook(identifier: string): Promise<Book | null> {
         decoded.endsWith('-' + b.id)
     ) || null
   );
+});
+
+function getBookPageTitle(book: Book): string {
+  const brand = ' | শেষের পাতা';
+  const author = (book.author || '').trim();
+  const separator = author ? ' — ' : '';
+  const availableTitleLength = Math.max(12, 60 - brand.length - (author ? author.length + separator.length : 0));
+  const title = (book.title || 'বই').trim();
+  const shortenedTitle = title.length > availableTitleLength
+    ? `${title.slice(0, availableTitleLength - 1).trimEnd()}…`
+    : title;
+  const candidate = `${shortenedTitle}${author ? `${separator}${author}` : ''}${brand}`;
+  return candidate.length <= 60 ? candidate : `${title.slice(0, 60 - brand.length - 1).trimEnd()}…${brand}`;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -166,7 +179,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const pageUrl = getBookUrl(book, SITE_URL);
   const ogImageUrl = resolveBookOgImage(book);
-  const title = `${book.title} — ${book.author} | শেষের পাতা`;
+  const title = getBookPageTitle(book);
   const description = getBookDescription(book);
 
   return {
