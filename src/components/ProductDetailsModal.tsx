@@ -48,8 +48,8 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   // Dynamic reviews state
   const [reviews, setReviews] = useState<BookReview[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
-  const [reviewCount, setReviewCount] = useState(book.reviewCount || 0);
-  const [averageRating, setAverageRating] = useState(book.rating || 5.0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
 
   // Review Form state
   const [isEligible, setIsEligible] = useState<boolean>(false);
@@ -68,13 +68,18 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   // Load reviews from Supabase when book changes
   useEffect(() => {
     if (!book?.id) return;
+    setReviews([]);
+    setReviewCount(0);
+    setAverageRating(0);
     setReviewsLoading(true);
     reviewService.getBookReviews(book.id).then((res) => {
       setReviewsLoading(false);
       if (res.success) {
-        setReviews(res.reviews);
-        setReviewCount(res.count);
-        setAverageRating(res.rating);
+        const realReviews = Array.isArray(res.reviews) ? res.reviews : [];
+        setReviews(realReviews);
+        setReviewCount(realReviews.length);
+        const ratings = realReviews.map((review) => Number(review.rating)).filter((rating) => Number.isFinite(rating));
+        setAverageRating(ratings.length ? Number((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length).toFixed(1)) : 0);
       }
     }).catch(() => {
       setReviewsLoading(false);
@@ -320,13 +325,13 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                   {book.category}
                 </span>
 
-                {Number(book.reviewCount) > 0 && (
+                {reviewCount > 0 && (
                   <div className="flex items-center gap-1.5 text-sm text-zinc-600">
                     <div className="flex items-center text-amber-500">
                       <Star className="w-4 h-4 fill-current" />
                     </div>
-                    <span className="font-bold text-zinc-900">{toBengaliNumber(book.rating)}</span>
-                    <span className="text-zinc-400">({toBengaliNumber(book.reviewCount)} রিভিউ)</span>
+                    <span className="font-bold text-zinc-900">{toBengaliNumber(averageRating)}</span>
+                    <span className="text-zinc-400">({toBengaliNumber(reviewCount)} রিভিউ)</span>
                   </div>
                 )}
               </div>
@@ -639,32 +644,34 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               {activeTab === 'reviews' && (
                 <div className="space-y-6">
                   {/* Top Rating Summary Banner */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-                    <div>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-black text-zinc-900">{toBengaliNumber(averageRating)}</span>
-                        <span className="text-sm font-semibold text-zinc-500"> / ৫.০</span>
+                                    {reviewCount > 0 && (
+  <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-3xl font-black text-zinc-900">{toBengaliNumber(averageRating)}</span>
+                          <span className="text-sm font-semibold text-zinc-500"> / ৫.০</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-amber-500 my-1">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-4 h-4 ${
+                                s <= Math.round(averageRating) ? 'fill-current text-amber-500' : 'text-zinc-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-zinc-600">
+                          মোট {toBengaliNumber(reviewCount)}টি ভেরিফায়েড পাঠক রিভিউ
+                        </p>
                       </div>
-                      <div className="flex items-center gap-1 text-amber-500 my-1">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star
-                            key={s}
-                            className={`w-4 h-4 ${
-                              s <= Math.round(averageRating) ? 'fill-current text-amber-500' : 'text-zinc-300'
-                            }`}
-                          />
-                        ))}
+  
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-300/60 text-amber-900 text-xs font-bold">
+                        <ShieldCheck className="w-4 h-4 text-amber-700" />
+                        <span>১০০% ভেরিফায়েড পাঠক মূল্যায়ন</span>
                       </div>
-                      <p className="text-xs text-zinc-600">
-                        মোট {toBengaliNumber(reviewCount)}টি ভেরিফায়েড পাঠক রিভিউ
-                      </p>
                     </div>
-
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-300/60 text-amber-900 text-xs font-bold">
-                      <ShieldCheck className="w-4 h-4 text-amber-700" />
-                      <span>১০০% ভেরিফায়েড পাঠক মূল্যায়ন</span>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Review Submission Section */}
                   {isEligible ? (
