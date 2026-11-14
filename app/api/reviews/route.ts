@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     const { data: reviews, error } = await supabase
       .from('reviews')
-      .select('*')
+      .select('id, book_id, user_name, rating, review_text, is_verified_purchase, created_at')
       .eq('book_id', bookId)
       .order('created_at', { ascending: false });
 
