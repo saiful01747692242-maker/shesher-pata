@@ -863,9 +863,11 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {relatedBooks.map((relBook) => (
-                  <div
+                  <a
                     key={relBook.id}
-                    onClick={() => {
+                    href={getBookUrl(relBook)}
+                    onClick={(event) => {
+                      event.preventDefault();
                       onSelectBook(relBook);
                       setActiveImage(relBook.image);
                       setQuantity(1);
@@ -886,7 +888,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                     <span className="text-xs font-black text-amber-800 mt-1 block">
                       {formatPrice(relBook.price)}
                     </span>
-                  </div>
+                  </a>
                 ))}
               </div>
             </div>
