@@ -21,8 +21,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     try {
       const { data, error } = await supabase
         .from('books')
-        .select('id, slug, title, english_name, is_active, updated_at')
+        .select('id, slug, title, english_name, is_active, status, updated_at')
         .eq('is_active', true)
+        .eq('status', 'published')
         .order('updated_at', { ascending: false })
         .limit(500);
 
