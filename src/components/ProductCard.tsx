@@ -76,14 +76,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           }}
           className="relative h-full w-auto max-w-full flex items-center justify-center"
         >
-        <img
-          src={book.image || book.cover_image}
-          alt={book.title}
-          className={`h-full w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md ${
+          <img
+            src={book.image || book.cover_image}
+            alt={book.title}
+            className={`h-full w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md ${
             book.stock <= 0 ? 'opacity-70 grayscale-[25%]' : ''
           }`}
-          loading="lazy"
-        />
+            loading="lazy"
+          />
 
         </Link>
 
@@ -112,7 +112,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span>এখনই কিনুন</span>
             </button>
           )}
-  
+        </div>
       </div>
 
       {/* Book Information Section */}
