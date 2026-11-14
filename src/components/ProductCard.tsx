@@ -1,11 +1,13 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { ShoppingCart, Heart, Eye } from 'lucide-react';
 import { Book } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
+import { getBookSlug } from '../utils/bookUrl';
 
 interface ProductCardProps {
   book: Book;
@@ -64,8 +66,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       </button>
 
       {/* Top Book Image Container (Off-white / cream background + Golden Bottom Divider) */}
-      <div
-        onClick={() => onOpenDetails(book)}
+      <Link
+        href={`/book/${encodeURIComponent(getBookSlug(book))}`}
+        onClick={(event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          onOpenDetails(book);
+        }}
         className="relative aspect-[3/4] w-full bg-[#FAF7F0] p-4 flex items-center justify-center cursor-pointer border-b-[3.5px] border-[#DEB038]"
       >
         <img
@@ -102,20 +109,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <span>এখনই কিনুন</span>
             </button>
           )}
-        </div>
+        </Link>
       </div>
 
       {/* Book Information Section */}
       <div className="p-3.5 pt-3 flex flex-col flex-1 justify-between bg-white">
         <div>
           {/* Book Title */}
-          <h3
-            onClick={() => onOpenDetails(book)}
+          <Link
+            href={`/book/${encodeURIComponent(getBookSlug(book))}`}
+            onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              onOpenDetails(book);
+            }}
             className="font-bold text-sm sm:text-[15px] text-[#221F17] hover:text-[#B45309] transition-colors line-clamp-1 cursor-pointer leading-snug"
             title={book.title}
           >
             {book.title}
-          </h3>
+          </Link>
 
           {/* Author */}
           <p className="text-xs text-[#8C8474] truncate mt-1 font-normal">
