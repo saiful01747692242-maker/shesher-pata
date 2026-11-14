@@ -3,8 +3,12 @@ import { getServerSupabaseClient } from '../src/lib/serverSupabase';
 import { BOOKS } from '../src/data/books';
 import { getBookSlug } from '../src/utils/bookUrl';
 
+// Read the sitemap at request time so books published in Supabase appear
+// without requiring a new website deployment.
+export const dynamic = 'force-dynamic';
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\/+$/, '');
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\\/+$/, '');
 
   interface SitemapBookEntry {
     slug: string;
