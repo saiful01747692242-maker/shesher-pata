@@ -44,11 +44,10 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-image: url("/images/background.png");
-    background-repeat: repeat;
-    background-size: 320px auto;
-    background-position: top left;
-    opacity: 0.35;
+    background:
+      radial-gradient(ellipse at 12% 8%, rgba(229, 169, 19, 0.055), transparent 42%),
+      radial-gradient(ellipse at 88% 92%, rgba(33, 30, 21, 0.035), transparent 46%);
+    opacity: 1;
     z-index: -1;
     pointer-events: none;
   }
