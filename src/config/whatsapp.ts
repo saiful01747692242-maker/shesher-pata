@@ -15,7 +15,7 @@
 
 export const WHATSAPP_CONFIG = {
   // Destination WhatsApp number (can be edited here or in Admin Settings)
-  phoneNumber: 'YOUR_WHATSAPP_NUMBER',
+  phoneNumber: '8801747692242',
 
   // Optional prefilled message when opening WhatsApp chat
   defaultMessage: 'Hello, I need help with an order from Shesher Pata.',
