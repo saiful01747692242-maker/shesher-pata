@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Return only the matching record for public tracking; admin retains full order access.
-    return NextResponse.json({ success: true, orders: data || [] });
+    return NextResponse.json({ success: true, orders: data || [] }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
   } catch (err: any) {
     console.error('[API /api/orders GET Exception]:', err);
     return NextResponse.json({ error: 'অর্ডার খুঁজতে সমস্যা হয়েছে।' }, { status: 500 });
@@ -114,10 +114,17 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (existingOrder) {
-      // Do not disclose an existing customer's order to a caller reusing an order ID.
+      // Idempotent retry is allowed only when the caller also proves the checkout phone.
+      if (existingOrder.customer_phone === String(phone).trim()) {
+        return NextResponse.json({
+          success: true,
+          order: existingOrder,
+          message: 'অর্ডার ইতোমধ্যে ডাটাবেজে সংরক্ষিত রয়েছে',
+        }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } });
+      }
       return NextResponse.json(
         { success: false, error: 'এই অর্ডার নম্বরটি ইতোমধ্যে ব্যবহৃত হয়েছে। নতুন করে অর্ডার দিন।' },
-        { status: 409 }
+        { status: 409, headers: { 'Cache-Control': 'private, no-store, max-age=0' } }
       );
     }
 
