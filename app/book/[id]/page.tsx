@@ -226,6 +226,15 @@ export default async function BookPage({ params }: PageProps) {
 
   const bookImageUrl = resolveBookOgImage(book);
   const bookPageUrl = getBookUrl(book, SITE_URL);
+  const relatedBooks = allBooks
+    .filter((candidate) => candidate.id !== book.id && (
+      (book.category && candidate.category === book.category) ||
+      (book.author && candidate.author === book.author)
+    ))
+    .filter((candidate, index, list) =>
+      list.findIndex((item) => getBookSlug(item) === getBookSlug(candidate)) === index
+    )
+    .slice(0, 8);
 
   // JSON-LD structured data for Google Books Rich Snippets
   const jsonLd = {
@@ -259,6 +268,26 @@ export default async function BookPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <BookDetailClient book={book} allBooks={allBooks} />
+      {relatedBooks.length > 0 && (
+        <nav aria-label="সম্পর্কিত বই" className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-8">
+          <h2 className="text-lg font-bold text-zinc-900 mb-3">আরও পড়ুন</h2>
+          <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {relatedBooks.map((relatedBook) => (
+              <li key={relatedBook.id}>
+                <a
+                  href={getBookUrl(relatedBook, SITE_URL)}
+                  className="text-sm text-amber-800 hover:text-amber-950 underline underline-offset-2"
+                >
+                  {relatedBook.title}
+                </a>
+                {relatedBook.author && (
+                  <p className="text-xs text-zinc-500 mt-1">{relatedBook.author}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
     </>
   );
 }
