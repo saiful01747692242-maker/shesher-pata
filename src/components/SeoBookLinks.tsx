@@ -2,9 +2,9 @@ import 'server-only';
 
 import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
-import { getServerEnv } from '../src/lib/serverEnv';
-import { getBookSlug } from '../src/utils/bookUrl';
-import { BOOKS } from '../src/data/books';
+import { getServerEnv } from '../lib/serverEnv';
+import { getBookSlug } from '../utils/bookUrl';
+import { BOOKS } from '../data/books';
 
 type SeoBook = {
   id: string;
