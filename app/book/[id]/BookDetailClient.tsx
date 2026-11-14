@@ -28,9 +28,21 @@ export default function BookDetailClient({ book, allBooks }: BookDetailClientPro
   const { addToCart } = useCart();
   const { books } = useData();
 
-  // Pick live real-time book from DataContext so admin stock adjustments take immediate effect
-  const liveBook = books.find((b) => b.id === book.id) || book;
-  const liveAllBooks = books && books.length > 0 ? books : allBooks;
+  // The server-fetched book is the source of truth for this URL. Older browser
+  // caches can contain a different book with the same ID, so match identity
+  // by ID, slug, title and author before allowing cached live fields to win.
+  const cachedMatch = books.find(
+    (candidate) =>
+      candidate.id === book.id &&
+      getBookSlug(candidate) === getBookSlug(book) &&
+      candidate.title === book.title &&
+      candidate.author === book.author
+  );
+  const liveBook = cachedMatch || book;
+
+  // Use the server-fetched catalog for the initial page render so stale
+  // browser cache entries cannot leak unrelated books into this page's HTML.
+  const liveAllBooks = allBooks;
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [buyNowItem, setBuyNowItem] = useState<CartItem | null>(null);
