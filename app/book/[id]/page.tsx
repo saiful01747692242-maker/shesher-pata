@@ -188,7 +188,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const pageUrl = getBookUrl(book, SITE_URL);
   const ogImageUrl = resolveBookOgImage(book);
   const title = getBookPageTitle(book);
-  const description = getBookDescription(book);
 
   return {
     title,
@@ -250,6 +249,7 @@ export default async function BookPage({ params }: PageProps) {
 
 
   // Book + Product structured data helps search engines understand the title and its offer.
+  const description = getBookDescription(book);
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
