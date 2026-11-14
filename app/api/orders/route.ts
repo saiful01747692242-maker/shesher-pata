@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       const toDigits = (value: string) =>
         String(value || '')
           .replace(/[০-৯]/g, (digit) => String('০১২৩৪৫৬৭৮৯'.indexOf(digit)))
-          .replace(/\\D/g, '');
+          .replace(/\D/g, '');
       const phoneMatches = Boolean(order) && toDigits(order.customer_phone) === toDigits(phone);
 
       return NextResponse.json(
