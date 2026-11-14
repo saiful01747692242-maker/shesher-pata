@@ -48,18 +48,31 @@ function resolveBookOgImage(book: Book | null): string {
 }
 
 function getBookDescription(book: Book): string {
-  if (book.description && book.description.trim().length > 20) {
-    const clean = book.description.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-    if (clean.length > 160) {
-      return `${clean.substring(0, 157)}...`;
-    }
-    return clean;
+  const clean = (book.description || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Keep a useful piece of the book synopsis, but add purchase-relevant facts
+  // so search snippets explain who wrote it and where it can be ordered.
+  const details = [
+    book.author ? `লেখক: ${book.author}` : '',
+    book.publisher ? `প্রকাশক: ${book.publisher}` : '',
+    book.price ? `মূল্য: ৳${book.price}` : '',
+    'শেষের পাতা থেকে অর্ডার করুন',
+  ].filter(Boolean).join(' • ');
+
+  if (clean.length > 20) {
+    const available = Math.max(45, 158 - details.length - 1);
+    const summary = clean.length > available
+      ? `${clean.substring(0, available).replace(/[\\s,।;:-]+$/, '')}…`
+      : clean;
+    return `${summary} ${details}`.trim();
   }
-  const parts = [`"${book.title}" — লেখক: ${book.author}`];
+
+  const parts = [`"${book.title}"`];
   if (book.category) parts.push(`বিভাগ: ${book.category}`);
-  if (book.publisher) parts.push(`প্রকাশক: ${book.publisher}`);
-  if (book.price) parts.push(`মূল্য: ৳${book.price}`);
-  parts.push('আজই অর্ডার করুন শেষের পাতা অনলাইন বুকশপে।');
+  if (details) parts.push(details);
   return parts.join(' • ');
 }
 
