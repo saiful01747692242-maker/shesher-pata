@@ -26,6 +26,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const isWished = isInWishlist(book.id);
+  const discountPercent = book.originalPrice > book.price && book.originalPrice > 0
+    ? Math.round(((book.originalPrice - book.price) / book.originalPrice) * 100)
+    : 0;
 
   return (
     <div className="group relative bg-[#FDFBF7] rounded-2xl border border-[#EBDCB9] hover:border-[#E5A913] shadow-xs hover:shadow-md transition-all duration-200 flex flex-col overflow-hidden select-none font-['Noto_Sans_Bengali'] h-full">
@@ -34,7 +37,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="absolute top-2 left-2 z-10 bg-rose-600/95 text-white font-extrabold text-[10px] sm:text-[11px] px-2 py-0.5 rounded shadow-sm">
           স্টক শেষ
         </div>
-      ) : book.discount > 0 ? (
+      ) : discountPercent > 0 ? (
         <div className="absolute top-2 left-2 z-10 w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center filter drop-shadow-xs">
           <svg
             viewBox="0 0 100 100"
@@ -43,7 +46,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <path d="M50 2 L56 12 L67 8 L70 19 L82 18 L82 30 L93 33 L89 44 L98 50 L89 56 L93 67 L82 70 L82 82 L70 81 L67 92 L56 88 L50 98 L44 88 L33 92 L30 81 L18 82 L18 70 L7 67 L11 56 L2 50 L11 44 L7 33 L18 30 L18 18 L30 19 L33 8 L44 12 Z" />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center leading-none pointer-events-none">
-            <span className="text-[10px] sm:text-[11px] font-black tracking-tight">{toBengaliNumber(book.discount)}%</span>
+            <span className="text-[10px] sm:text-[11px] font-black tracking-tight">{toBengaliNumber(discountPercent)}%</span>
             <span className="text-[7px] font-black uppercase tracking-tighter mt-0.5">OFF</span>
           </div>
         </div>
