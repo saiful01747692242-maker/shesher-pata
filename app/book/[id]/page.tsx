@@ -93,6 +93,8 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
         .from('books')
         .select('*')
         .or(`slug.eq.${decoded},id.eq.${decoded}`)
+        .eq('is_active', true)
+        .eq('status', 'published')
         .maybeSingle();
 
       if (!error && data) {
@@ -108,6 +110,8 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
             .from('books')
             .select('*')
             .eq('id', candidateId)
+            .eq('is_active', true)
+            .eq('status', 'published')
             .maybeSingle();
 
           if (!candErr && byCandidate) {
@@ -120,7 +124,13 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
     }
   }
 
-  // Fallback to static catalog if Supabase offline or not matched
+  // If Supabase answered successfully but no active, published row matched,
+  // do not resurrect a deleted/old demo-catalogue URL as a live book page.
+  // Static catalogue is only a resilience fallback when Supabase is unavailable.
+  if (supabase) {
+    return null;
+  }
+
   return (
     BOOKS.find(
       (b) =>
