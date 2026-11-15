@@ -88,7 +88,7 @@ export function rowToBook(row: any): Book {
     originalPrice,
     old_price: oldPrice,
     discount: row.discount !== undefined && row.discount !== null ? Number(row.discount) : 0,
-    rating: row.rating !== undefined && row.rating !== null ? Number(row.rating) : 5.0,
+    rating: row.rating !== undefined && row.rating !== null ? Number(row.rating) : 0,
     reviewCount:
       row.review_count !== undefined && row.review_count !== null
         ? Number(row.review_count)
@@ -222,7 +222,7 @@ export function bookToRow(book: Partial<Book> | Record<string, any>): Record<str
     original_price: originalPrice,
     old_price: oldPrice,
     discount: book.discount !== undefined && book.discount !== null ? Number(book.discount) : 0,
-    rating: book.rating !== undefined && book.rating !== null ? Number(book.rating) : 5.0,
+    rating: book.rating !== undefined && book.rating !== null ? Number(book.rating) : 0,
     review_count: reviewCount,
     stock: book.stock !== undefined && book.stock !== null ? Math.max(0, Number(book.stock)) : 0,
     isbn: String(book.isbn || '').trim(),
@@ -460,8 +460,8 @@ export const bookService = {
       originalPrice: Number(bookData.originalPrice) || Number(bookData.price) || 0,
       discount: Number(bookData.discount) || 0,
       stock: Number(bookData.stock) || 0,
-      rating: bookData.rating !== undefined ? Number(bookData.rating) : 5.0,
-      reviewCount: bookData.reviewCount !== undefined ? Number(bookData.reviewCount) : 1,
+      rating: bookData.rating !== undefined ? Number(bookData.rating) : 0,
+      reviewCount: bookData.reviewCount !== undefined ? Number(bookData.reviewCount) : 0,
       tags: Array.isArray(bookData.tags) ? bookData.tags : [],
       sectionIds: Array.isArray(bookData.sectionIds) ? bookData.sectionIds : ['new-arrivals'],
       created_at: bookData.created_at || new Date().toISOString(),
