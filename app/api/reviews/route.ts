@@ -46,14 +46,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         reviews: [],
-        rating: 5.0,
+        rating: 0,
         count: 0,
       });
     }
 
     const { data: reviews, error } = await supabase
       .from('reviews')
-      .select('*')
+      .select('id, book_id, user_name, rating, review_text, is_verified_purchase, created_at')
       .eq('book_id', bookId)
       .order('created_at', { ascending: false });
 
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     }
 
     const count = reviews?.length || 0;
-    let avgRating = 5.0;
+    let avgRating = 0;
     if (count > 0) {
       const sum = reviews.reduce((acc: number, r: any) => acc + (Number(r.rating) || 0), 0);
       avgRating = Number((sum / count).toFixed(1));

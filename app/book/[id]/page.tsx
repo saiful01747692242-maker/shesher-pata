@@ -6,6 +6,7 @@ import { Book } from '../../../src/types';
 import { getServerSupabaseClient } from '../../../src/lib/serverSupabase';
 import { rowToBook } from '../../../src/services/bookService';
 import { getBookSlug, getBookUrl } from '../../../src/utils/bookUrl';
+import { getRealReviewStats } from '../../../src/lib/serverPublicData';
 import BookDetailClient from './BookDetailClient';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://shesherpata.com').replace(/\/+$/, '');
@@ -55,7 +56,9 @@ function getBookSeoName(book: Book): string {
 }
 
 function getBookDescription(book: Book): string {
-  const clean = (book.description_bn || book.description || '')
+  // Use the same text the page shows to visitors (book.description). description_bn is only a fallback,
+  // because it can hold unrelated text if it was imported incorrectly.
+  const clean = (book.description || book.description_bn || '')
     .replace(/<[^>]*>/g, ' ')
     .replace(/\\s+/g, ' ')
     .trim();
@@ -251,6 +254,9 @@ export default async function BookPage({ params }: PageProps) {
 
   // Book + Product structured data helps search engines understand the title and its offer.
   const description = getBookDescription(book);
+  // Only real, stored reviews may appear in structured data (never the display-only counters on the book row).
+  const reviewStats = await getRealReviewStats(book.id);
+  const categoryName = (book.category || '').trim();
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -262,6 +268,8 @@ export default async function BookPage({ params }: PageProps) {
         publisher: book.publisher ? { '@type': 'Organization', name: book.publisher } : undefined,
         image: bookImageUrl,
         isbn: book.isbn || undefined,
+        inLanguage: book.language === 'English' || book.language === 'ইংরেজি' ? 'en' : 'bn',
+        numberOfPages: Number(book.pages) > 0 ? Number(book.pages) : undefined,
       },
       {
         '@type': 'Product',
@@ -270,14 +278,30 @@ export default async function BookPage({ params }: PageProps) {
         image: [bookImageUrl],
         sku: book.id,
         brand: book.publisher ? { '@type': 'Brand', name: book.publisher } : undefined,
+        category: categoryName || undefined,
+        aggregateRating: reviewStats
+          ? {
+              '@type': 'AggregateRating',
+              ratingValue: reviewStats.average,
+              reviewCount: reviewStats.count,
+            }
+          : undefined,
         offers: Number(book.price) > 0 ? {
           '@type': 'Offer',
           url: bookPageUrl,
           priceCurrency: 'BDT',
           price: Number(book.price),
+          itemCondition: 'https://schema.org/NewCondition',
           availability: Number(book.stock) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
           seller: { '@type': 'Organization', name: 'শেষের পাতা', url: SITE_URL },
         } : undefined,
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'হোম', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: getBookSeoName(book), item: bookPageUrl },
+        ],
       },
     ],
   };

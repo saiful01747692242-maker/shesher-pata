@@ -540,7 +540,9 @@ function AdminDashboardContent() {
           category: resolvedCategory,
           price: Number(bookForm.price),
           originalPrice: Number(bookForm.originalPrice),
-          discount: Number(bookForm.discount),
+          discount: bookForm.originalPrice > bookForm.price && bookForm.originalPrice > 0
+            ? Math.round(((bookForm.originalPrice - bookForm.price) / bookForm.originalPrice) * 100)
+            : 0,
           stock: Number(bookForm.stock),
           isbn: bookForm.isbn.trim() || `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
           pages: Number(bookForm.pages),
@@ -568,7 +570,9 @@ function AdminDashboardContent() {
           category: resolvedCategory,
           price: Number(bookForm.price),
           originalPrice: Number(bookForm.originalPrice),
-          discount: Number(bookForm.discount),
+          discount: bookForm.originalPrice > bookForm.price && bookForm.originalPrice > 0
+            ? Math.round(((bookForm.originalPrice - bookForm.price) / bookForm.originalPrice) * 100)
+            : 0,
           stock: Number(bookForm.stock),
           isbn: bookForm.isbn.trim() || `978-984-${Math.floor(100000 + Math.random() * 900000)}`,
           pages: Number(bookForm.pages),
@@ -609,7 +613,9 @@ function AdminDashboardContent() {
       category: book.category,
       price: book.price,
       originalPrice: book.originalPrice || book.price,
-      discount: book.discount || 0,
+      discount: book.originalPrice > book.price && book.originalPrice > 0
+        ? Math.round(((book.originalPrice - book.price) / book.originalPrice) * 100)
+        : 0,
       stock: book.stock,
       isbn: book.isbn || '',
       pages: book.pages || 200,
@@ -2094,7 +2100,7 @@ function AdminDashboardContent() {
                               <div className="font-bold text-zinc-900">{formatPrice(book.price)}</div>
                               {book.originalPrice > book.price && (
                                 <div className="text-[10px] text-zinc-400 line-through">
-                                  {formatPrice(book.originalPrice)} (-{toBengaliNumber(book.discount)}%)
+                                  {formatPrice(book.originalPrice)} (-{toBengaliNumber(book.originalPrice > book.price && book.originalPrice > 0 ? Math.round(((book.originalPrice - book.price) / book.originalPrice) * 100) : 0)}%)
                                 </div>
                               )}
                             </td>
@@ -4075,11 +4081,11 @@ function AdminDashboardContent() {
                     min="0"
                     max="100"
                     value={bookForm.discount}
-                    onChange={(e) =>
-                      setBookForm({ ...bookForm, discount: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none"
+                    readOnly
+                    aria-readonly="true"
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs sm:text-sm bg-zinc-100 text-zinc-600 cursor-not-allowed outline-none"
                   />
+                  <p className="text-[10px] text-zinc-500 mt-1">বিক্রয়মূল্য ও গায়ের মূল্য থেকে ছাড়ের হার অটোমেটিক হিসাব হবে</p>
                 </div>
 
                 <div>

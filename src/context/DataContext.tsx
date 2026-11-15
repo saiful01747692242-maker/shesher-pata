@@ -285,7 +285,7 @@ const STORAGE_KEYS = {
   ORDERS: 'shesher_pata_orders_v1',
 };
 
-export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: SiteSettings | null }> = ({ children, initialSettings }) => {
   const [books, setBooks] = useState<Book[]>(() => bookService.getCachedBooks());
   const [isBooksLoading, setIsBooksLoading] = useState<boolean>(true);
   const [banners, setBanners] = useState<Banner[]>(() => {
@@ -298,7 +298,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [publishers, setPublishers] = useState<Publisher[]>(() => publisherService.getCachedPublishers(INITIAL_PUBLISHERS));
   const [orders, setOrders] = useState<OrderDetails[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState<boolean>(false);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+  // Server-provided settings keep the first HTML (and search engines) on real contact details.
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(initialSettings ?? DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load from LocalStorage and Supabase on mount
@@ -402,8 +403,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }).catch(() => {});
 
-      // Initial cached settings
-      setSiteSettings(settingsService.getCachedSettings());
+      // Initial cached settings (skipped when the server already provided fresh ones)
+      if (!initialSettings) {
+        setSiteSettings(settingsService.getCachedSettings());
+      }
 
       // Fetch from Supabase in background
       settingsService.fetchSettings().then((remoteSettings) => {

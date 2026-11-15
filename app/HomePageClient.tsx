@@ -33,12 +33,15 @@ const CheckoutModal = dynamic(() => import('../src/components/CheckoutModal').th
 const TrackOrderModal = dynamic(() => import('../src/components/TrackOrderModal').then((m) => m.TrackOrderModal), { ssr: false });
 const AccountModal = dynamic(() => import('../src/components/AccountModal').then((m) => m.AccountModal), { ssr: false });
 
-export default function HomePage() {
+export default function HomePage({ initialBooks }: { initialBooks?: Book[] }) {
   const router = useRouter();
   const { showToast } = useToast();
   const { addToCart, isCartOpen } = useCart();
   const { setIsWishlistOpen, isWishlistOpen } = useWishlist();
-  const { books, siteSettings, categories } = useData();
+  const { books: contextBooks, siteSettings, categories, isBooksLoading } = useData();
+  // Until the browser has loaded its own copy, show the real books rendered on the server
+  // (instead of the built-in demo catalogue) so crawlers and first-time visitors see the real shop.
+  const books = initialBooks && initialBooks.length > 0 && isBooksLoading ? initialBooks : contextBooks;
 
   // Navigation state
   const [currentNav, setCurrentNav] = useState<string>('home');

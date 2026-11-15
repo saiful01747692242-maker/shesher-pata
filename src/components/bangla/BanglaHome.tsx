@@ -42,7 +42,7 @@ export const BanglaHome: React.FC<BanglaHomeProps> = ({
   );
 
   const newReleaseBooks = useMemo(
-    () => books.filter((b) => b.isNew || b.isNewRelease || b.sectionIds?.includes('new_releases') || b.rating >= 4.8),
+    () => books.filter((b) => b.isNew || b.isNewRelease || b.sectionIds?.includes('new_releases')),
     [books]
   );
 
