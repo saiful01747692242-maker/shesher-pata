@@ -274,8 +274,14 @@ export default async function BookPage({ params }: PageProps) {
   }
 
   // Permanently consolidate legacy static-catalog URLs when a unique database listing was resolved.
-  const isLegacyStaticUrl = Boolean(findStaticBookBySlug(decoded));
-  if (isLegacyStaticUrl && getBookSlug(book) !== decoded) {
+  const legacyStaticBook = findStaticBookBySlug(decoded);
+  // A legacy static-catalog ID can differ from the active database listing ID.
+  // Compare both IDs and slugs so a resolved database listing always redirects
+  // to its persisted canonical URL, even when slug normalization is unchanged.
+  if (
+    legacyStaticBook &&
+    (book.id !== legacyStaticBook.id || getBookSlug(book) !== decoded)
+  ) {
     permanentRedirect(getBookUrl(book, SITE_URL));
   }
 
