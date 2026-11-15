@@ -41,7 +41,7 @@ export const reviewService = {
       return {
         success: false,
         reviews: [],
-        rating: 5.0,
+        rating: 0,
         count: 0,
         error: e.message || 'নেটওয়ার্ক সমস্যা',
       };
