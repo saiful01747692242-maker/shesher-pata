@@ -1,6 +1,6 @@
 import React, { cache } from 'react';
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { BOOKS } from '../../../src/data/books';
 import { Book } from '../../../src/types';
 import { getServerSupabaseClient } from '../../../src/lib/serverSupabase';
@@ -81,6 +81,23 @@ function getBookDescription(book: Book): string {
     : result;
 }
 
+function normalizeBookMatchText(value: unknown): string {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+function findStaticBookBySlug(identifier: string): Book | undefined {
+  return BOOKS.find(
+    (book) =>
+      book.slug === identifier ||
+      book.id === identifier ||
+      getBookSlug(book) === identifier ||
+      identifier.endsWith('-' + book.id)
+  );
+}
+
 const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
   const decoded = decodeURIComponent(identifier || '').trim();
   if (!decoded) return null;
@@ -115,21 +132,43 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
           }
         }
       }
+
+      // 3. Resolve a legacy static-catalog URL to a unique active database listing.
+      // Ambiguous title/author matches are deliberately left untouched.
+      const staticBook = findStaticBookBySlug(decoded);
+      if (staticBook) {
+        const staticTitle = normalizeBookMatchText(staticBook.title_bn || staticBook.bangla_name || staticBook.title);
+        const staticAuthor = normalizeBookMatchText(staticBook.author);
+        if (staticTitle && staticAuthor) {
+          const { data: publishedBooks, error: legacyError } = await supabase
+            .from('books')
+            .select('*')
+            .eq('is_active', true)
+            .eq('status', 'published');
+
+          if (!legacyError && publishedBooks) {
+            const matches = publishedBooks.filter((row: any) => {
+              if (normalizeBookMatchText(row.author) !== staticAuthor) return false;
+              return [row.title_bn, row.bangla_name, row.title, row.english_name]
+                .some((candidate) => {
+                  const normalized = normalizeBookMatchText(candidate);
+                  return normalized === staticTitle || normalized.startsWith(staticTitle);
+                });
+            });
+
+            if (matches.length === 1 && matches[0].slug) {
+              return rowToBook(matches[0]);
+            }
+          }
+        }
+      }
     } catch (err) {
       console.warn(`[BookPage] Supabase fetch error for identifier ${decoded}:`, err);
     }
   }
 
-  // Fallback to static catalog if Supabase offline or not matched
-  return (
-    BOOKS.find(
-      (b) =>
-        b.slug === decoded ||
-        b.id === decoded ||
-        getBookSlug(b) === decoded ||
-        decoded.endsWith('-' + b.id)
-    ) || null
-  );
+  // Keep the static catalogue as a fallback when Supabase is unavailable or no unique match exists.
+  return findStaticBookBySlug(decoded) || null;
 });
 
 function getBookPageTitle(book: Book): string {
@@ -232,6 +271,12 @@ export default async function BookPage({ params }: PageProps) {
 
   if (!book) {
     notFound();
+  }
+
+  // Permanently consolidate legacy static-catalog URLs when a unique database listing was resolved.
+  const isLegacyStaticUrl = Boolean(findStaticBookBySlug(decoded));
+  if (isLegacyStaticUrl && getBookSlug(book) !== decoded) {
+    permanentRedirect(getBookUrl(book, SITE_URL));
   }
 
   // Fetch all books for related recommendations
