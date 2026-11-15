@@ -85,7 +85,7 @@ function normalizeBookMatchText(value: unknown): string {
   return String(value || '')
     .normalize('NFKC')
     .toLocaleLowerCase()
-    .replace(/[^\\p{L}\\p{N}]/gu, '');
+    .replace(/[^\p{L}\p{N}]/gu, '');
 }
 
 function findStaticBookBySlug(identifier: string): Book | undefined {
