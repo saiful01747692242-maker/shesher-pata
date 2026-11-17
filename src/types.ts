@@ -5,6 +5,9 @@ export interface Book {
   bangla_name?: string;
   english_name?: string;
   slug?: string;
+  slug_history?: string[];
+  seo_title?: string;
+  meta_description?: string;
   author: string;
   publisher: string;
   category: string;
