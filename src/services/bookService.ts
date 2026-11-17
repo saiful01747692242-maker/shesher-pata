@@ -2,7 +2,7 @@ import { Book } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { BOOKS as INITIAL_BOOKS } from '../data/books';
 import { normalizeBengali } from '../utils/filterUtils';
-import { generateBookSlug } from '../utils/bookUrl';
+import { generateBookSlug, normalizeBookSlug } from '../utils/bookUrl';
 
 export const BOOKS_STORAGE_KEY = 'shesher_pata_books_v1';
 export const BOOKS_CHANGED_EVENT = 'shesher_pata_books_changed';
@@ -70,6 +70,9 @@ export function rowToBook(row: any): Book {
   return {
     id: String(row.id),
     slug: row.slug || undefined,
+    slug_history: Array.isArray(row.slug_history) ? row.slug_history : [],
+    seo_title: row.seo_title || undefined,
+    meta_description: row.meta_description || undefined,
     title,
     title_bn: banglaName,
     bangla_name: banglaName,
@@ -240,10 +243,13 @@ export function bookToRow(book: Partial<Book> | Record<string, any>): Record<str
     status: book.status || 'published',
     section_ids: sectionIdsArray,
     updated_at: new Date().toISOString(),
+    seo_title: String(book.seo_title || '').trim() || null,
+    meta_description: String(book.meta_description || '').trim() || null,
+    slug_history: Array.isArray(book.slug_history) ? book.slug_history : null,
   };
 
-  if (book.slug) {
-    row.slug = String(book.slug).trim();
+  if (book.slug && String(book.slug).trim()) {
+    row.slug = normalizeBookSlug(String(book.slug));
   } else if (title) {
     row.slug = generateBookSlug(title, String(book.id || row.id || Date.now()), englishName);
   }
@@ -267,7 +273,10 @@ export function bookToRowPartial(book: Partial<Book>): Record<string, any> {
     updated_at: new Date().toISOString(),
   };
 
-  if (book.slug !== undefined) row.slug = book.slug;
+  if (book.slug !== undefined) row.slug = normalizeBookSlug(String(book.slug || ''));
+  if (book.seo_title !== undefined) row.seo_title = String(book.seo_title || '').trim() || null;
+  if (book.meta_description !== undefined) row.meta_description = String(book.meta_description || '').trim() || null;
+  if (book.slug_history !== undefined) row.slug_history = Array.isArray(book.slug_history) ? book.slug_history : [];
 
   if (book.title !== undefined || book.bangla_name !== undefined || book.title_bn !== undefined) {
     const titleVal = normalizeBengali((book.bangla_name || book.title_bn || book.title || ''));
