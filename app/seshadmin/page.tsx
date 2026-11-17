@@ -135,6 +135,9 @@ function AdminDashboardContent() {
     edition: '১ম সংস্করণ',
     language: 'বাংলা',
     description: '',
+    slug: '',
+    seo_title: '',
+    meta_description: '',
     image: '',
     tags: 'উপন্যাস, জনপ্রিয়',
     isBestseller: true,
@@ -160,6 +163,9 @@ function AdminDashboardContent() {
     edition: string;
     language: string;
     description: string;
+    slug: string;
+    seo_title: string;
+    meta_description: string;
     image: string;
     tags: string;
     isBestseller: boolean;
@@ -549,6 +555,9 @@ function AdminDashboardContent() {
           edition: bookForm.edition.trim(),
           language: bookForm.language.trim(),
           description: bookForm.description.trim(),
+          slug: bookForm.slug.trim(),
+          seo_title: bookForm.seo_title.trim(),
+          meta_description: bookForm.meta_description.trim(),
           image: cleanImage,
           cover_image: cleanImage,
           tags: tagsArray,
@@ -579,6 +588,9 @@ function AdminDashboardContent() {
           edition: bookForm.edition.trim(),
           language: bookForm.language.trim(),
           description: bookForm.description.trim(),
+          slug: bookForm.slug.trim(),
+          seo_title: bookForm.seo_title.trim(),
+          meta_description: bookForm.meta_description.trim(),
           image: cleanImage,
           cover_image: cleanImage,
           tags: tagsArray,
@@ -622,6 +634,9 @@ function AdminDashboardContent() {
       edition: book.edition || '১ম সংস্করণ',
       language: book.language || 'বাংলা',
       description: book.description || '',
+      slug: book.slug || '',
+      seo_title: book.seo_title || '',
+      meta_description: book.meta_description || '',
       image: book.image || book.cover_image || '',
       tags: book.tags ? book.tags.join(', ') : '',
       isBestseller: !!book.isBestseller,
@@ -4237,6 +4252,59 @@ function AdminDashboardContent() {
                   placeholder="বইটির বিষয়বস্তু, সারসংক্ষেপ ও পাঠকদের জন্য আকর্ষণীয় বর্ণনা..."
                   className="w-full px-3.5 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white focus:border-amber-500 outline-none resize-none"
                 />
+              </div>
+
+              {/* SEO Settings: optional overrides with automatic fallbacks */}
+              <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-200 space-y-3">
+                <div className="flex items-center gap-2 border-b border-sky-100 pb-2">
+                  <Globe className="w-4 h-4 text-sky-700" />
+                  <div>
+                    <h4 className="text-sm font-bold text-sky-950">SEO Settings (ঐচ্ছিক)</h4>
+                    <p className="text-[10px] text-sky-800">ফাঁকা রাখলে ওয়েবসাইট বর্তমান অটোমেটিক SEO তথ্য ব্যবহার করবে।</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-800 mb-1">Custom URL Slug</label>
+                  <div className="flex items-center rounded-xl border border-zinc-300 bg-white overflow-hidden">
+                    <span className="px-3 py-2 text-[11px] text-zinc-500 bg-zinc-100 border-r border-zinc-200 whitespace-nowrap">/book/</span>
+                    <input
+                      type="text"
+                      value={bookForm.slug}
+                      maxLength={120}
+                      onChange={(e) => setBookForm({ ...bookForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') })}
+                      placeholder="abe-hayat-umera-ahmed"
+                      className="min-w-0 flex-1 px-3 py-2 text-xs bg-white focus:border-amber-500 outline-none font-mono"
+                    />
+                  </div>
+                  <p className="text-[10px] text-zinc-500 mt-1">ইংরেজি ছোট হাতের অক্ষর, সংখ্যা ও hyphen ব্যবহার করুন। নতুন বইয়ে ফাঁকা রাখলে অটোমেটিক Slug তৈরি হবে। পুরোনো Slug বদলালে আগের URL 301 Redirect পাবে।</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-800 mb-1">SEO Title</label>
+                  <input
+                    type="text"
+                    value={bookForm.seo_title}
+                    maxLength={70}
+                    onChange={(e) => setBookForm({ ...bookForm, seo_title: e.target.value })}
+                    placeholder="ফাঁকা রাখলে বইয়ের নাম, লেখক ও ব্র্যান্ড থেকে তৈরি হবে"
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-white focus:border-amber-500 outline-none"
+                  />
+                  <p className="text-[10px] text-zinc-500 mt-1">{bookForm.seo_title.length}/70 অক্ষর</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-800 mb-1">Meta Description</label>
+                  <textarea
+                    rows={3}
+                    value={bookForm.meta_description}
+                    maxLength={200}
+                    onChange={(e) => setBookForm({ ...bookForm, meta_description: e.target.value })}
+                    placeholder="বইটির জন্য আলাদা SEO Description লিখুন। ফাঁকা রাখলে বইয়ের Description ব্যবহার হবে।"
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-white focus:border-amber-500 outline-none resize-y"
+                  />
+                  <p className="text-[10px] text-zinc-500 mt-1">{bookForm.meta_description.length}/200 অক্ষর</p>
+                </div>
               </div>
 
               {/* Row 7: Tags & Badges */}
