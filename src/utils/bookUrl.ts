@@ -113,6 +113,20 @@ export function generateBookSlug(title: string, id: string, englishName?: string
 }
 
 /**
+ * Normalize an admin-entered URL slug to lowercase ASCII words separated by hyphens.
+ * Bengali or other unsupported characters are removed; an empty result triggers auto-generation.
+ */
+export function normalizeBookSlug(value: string): string {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
+}
+
+/**
  * Get the permanent slug for a book.
  * If the book already has a persisted slug, returns it.
  * Otherwise, generates a stable slug deterministically.
