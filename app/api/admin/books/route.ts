@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { isRequestAuthorized } from '../../../../src/lib/serverAuth';
 import { getServerSupabaseClient } from '../../../../src/lib/serverSupabase';
 import { bookToRow, bookToRowPartial } from '../../../../src/services/bookService';
+import { generateBookSlug, normalizeBookSlug } from '../../../../src/utils/bookUrl';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -70,6 +71,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!row.slug) {
+      return NextResponse.json({ error: 'একটি বৈধ URL Slug তৈরি করা যায়নি।' }, { status: 400 });
+    }
+
+    const { data: slugConflict, error: slugCheckError } = await supabase
+      .from('books')
+      .select('id')
+      .eq('slug', row.slug)
+      .maybeSingle();
+    if (slugCheckError) {
+      return NextResponse.json({ error: 'Slug যাচাই করা যায়নি। আবার চেষ্টা করুন।' }, { status: 500 });
+    }
+    const { data: historicalSlugConflict, error: historyCheckError } = await supabase
+      .from('books')
+      .select('id')
+      .contains('slug_history', [row.slug])
+      .maybeSingle();
+    if (historyCheckError) {
+      return NextResponse.json({ error: 'পুরোনো Slug যাচাই করা যায়নি। আবার চেষ্টা করুন।' }, { status: 500 });
+    }
+    if (slugConflict || historicalSlugConflict) {
+      return NextResponse.json({ error: 'এই URL Slug অন্য একটি বই ব্যবহার করছে। অন্য Slug দিন।' }, { status: 409 });
+    }
+
     // Insert into Supabase books table
     const { data, error } = await supabase
       .from('books')
@@ -112,6 +137,7 @@ export async function POST(request: NextRequest) {
 /**
  * PUT: Update an existing book.
  * Strictly verified: only authenticated admins can update books.
+ * Slug changes preserve the previous URL for a permanent redirect.
  */
 export async function PUT(request: NextRequest) {
   const authorized = isRequestAuthorized(request);
@@ -131,11 +157,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const row = bookToRowPartial(body);
-    // Don't overwrite the original ID with something different
-    row.id = id;
-    row.updated_at = new Date().toISOString();
-
     const supabase = getServerSupabaseClient();
     if (!supabase) {
       return NextResponse.json(
@@ -143,6 +164,73 @@ export async function PUT(request: NextRequest) {
         { status: 503 }
       );
     }
+
+    const { data: existingBook, error: existingBookError } = await supabase
+      .from('books')
+      .select('id, slug, slug_history, title, bangla_name, english_name')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (existingBookError) {
+      return NextResponse.json({ error: 'বইয়ের বর্তমান তথ্য যাচাই করা যায়নি।' }, { status: 500 });
+    }
+    if (!existingBook) {
+      return NextResponse.json({ error: 'বইটি ডাটাবেজে পাওয়া যায়নি।' }, { status: 404 });
+    }
+
+    const row = bookToRowPartial(body);
+
+    if (Object.prototype.hasOwnProperty.call(body, 'slug')) {
+      const titleForSlug = String(
+        body.bangla_name || body.title || existingBook.bangla_name || existingBook.title || ''
+      );
+      const englishNameForSlug = String(body.english_name ?? existingBook.english_name ?? '');
+      const requestedSlug =
+        normalizeBookSlug(String(body.slug || '')) ||
+        generateBookSlug(titleForSlug, id, englishNameForSlug);
+
+      if (!requestedSlug) {
+        return NextResponse.json({ error: 'একটি বৈধ URL Slug তৈরি করা যায়নি।' }, { status: 400 });
+      }
+
+      const { data: slugConflict, error: slugCheckError } = await supabase
+        .from('books')
+        .select('id')
+        .eq('slug', requestedSlug)
+        .neq('id', id)
+        .maybeSingle();
+      if (slugCheckError) {
+        return NextResponse.json({ error: 'Slug যাচাই করা যায়নি। আবার চেষ্টা করুন।' }, { status: 500 });
+      }
+
+      const { data: historicalSlugConflict, error: historyCheckError } = await supabase
+        .from('books')
+        .select('id')
+        .contains('slug_history', [requestedSlug])
+        .neq('id', id)
+        .maybeSingle();
+      if (historyCheckError) {
+        return NextResponse.json({ error: 'পুরোনো Slug যাচাই করা যায়নি। আবার চেষ্টা করুন।' }, { status: 500 });
+      }
+
+      if (slugConflict || historicalSlugConflict) {
+        return NextResponse.json({ error: 'এই URL Slug অন্য একটি বই ব্যবহার করছে বা আগে ব্যবহৃত হয়েছে। অন্য Slug দিন।' }, { status: 409 });
+      }
+
+      row.slug = requestedSlug;
+      const previousSlug = String(existingBook.slug || '').trim();
+      if (previousSlug && previousSlug !== requestedSlug) {
+        const previousSlugs = Array.isArray(existingBook.slug_history)
+          ? existingBook.slug_history.map((value: unknown) => String(value)).filter(Boolean)
+          : [];
+        row.slug_history = Array.from(new Set([...previousSlugs, previousSlug]))
+          .filter((value) => value !== requestedSlug);
+      }
+    }
+
+    // Don't overwrite the original ID with something different
+    row.id = id;
+    row.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('books')
@@ -163,6 +251,7 @@ export async function PUT(request: NextRequest) {
       revalidatePath('/');
       revalidatePath('/api/books');
       revalidatePath(`/book/${id}`);
+      if (existingBook.slug) revalidatePath(`/book/${existingBook.slug}`);
       if (data?.slug) revalidatePath(`/book/${data.slug}`);
       revalidatePath('/sitemap.xml');
     } catch (e) {
