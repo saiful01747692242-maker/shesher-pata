@@ -116,7 +116,18 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
         return rowToBook(data);
       }
 
-      // 2. Trailing candidate ID extraction (e.g. boi-er-naam-123 or name-bb-book-01)
+      // 2. Resolve a previously used slug and redirect it to the current canonical URL.
+      const { data: previousSlugBook, error: previousSlugError } = await supabase
+        .from('books')
+        .select('*')
+        .contains('slug_history', [decoded])
+        .maybeSingle();
+
+      if (!previousSlugError && previousSlugBook) {
+        return rowToBook(previousSlugBook);
+      }
+
+      // 3. Trailing candidate ID extraction (e.g. boi-er-naam-123 or name-bb-book-01)
       const lastHyphen = decoded.lastIndexOf('-');
       if (lastHyphen > 0) {
         const candidateId = decoded.substring(lastHyphen + 1).trim();
@@ -133,7 +144,7 @@ const fetchBook = cache(async (identifier: string): Promise<Book | null> => {
         }
       }
 
-      // 3. Resolve a legacy static-catalog URL to a unique active database listing.
+      // 4. Resolve a legacy static-catalog URL to a unique active database listing.
       // Ambiguous title/author matches are deliberately left untouched.
       const staticBook = findStaticBookBySlug(decoded);
       if (staticBook) {
@@ -229,8 +240,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const pageUrl = getBookUrl(book, SITE_URL);
   const ogImageUrl = resolveBookOgImage(book);
-  const title = getBookPageTitle(book);
-  const description = getBookDescription(book);
+  const title = book.seo_title?.trim() || getBookPageTitle(book);
+  const description = book.meta_description?.trim() || getBookDescription(book);
 
   return {
     title,
@@ -271,6 +282,11 @@ export default async function BookPage({ params }: PageProps) {
 
   if (!book) {
     notFound();
+  }
+
+  // Permanently redirect a previously used custom slug to the book's current canonical URL.
+  if (book.slug_history?.includes(decoded) && getBookSlug(book) !== decoded) {
+    permanentRedirect(getBookUrl(book, SITE_URL));
   }
 
   // Permanently consolidate legacy static-catalog URLs when a unique database listing was resolved.
