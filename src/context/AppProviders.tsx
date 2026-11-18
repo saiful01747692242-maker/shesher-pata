@@ -8,6 +8,7 @@ import { CartProvider } from './CartContext';
 import { LanguageProvider } from './LanguageContext';
 import { AuthProvider } from './AuthContext';
 import { MetaPixelTracker } from '../components/MetaPixelTracker';
+import { TikTokPixelTracker } from '../components/TikTokPixelTracker';
 import type { SiteSettings } from '../types';
 
 export const AppProviders: React.FC<{ children: ReactNode; initialSettings?: SiteSettings | null }> = ({ children, initialSettings }) => {
@@ -19,6 +20,7 @@ export const AppProviders: React.FC<{ children: ReactNode; initialSettings?: Sit
             <WishlistProvider>
               <CartProvider>
                 <MetaPixelTracker />
+                <TikTokPixelTracker />
                 {children}
               </CartProvider>
             </WishlistProvider>

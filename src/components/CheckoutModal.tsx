@@ -9,6 +9,7 @@ import { OrderDetails, CartItem } from '../types';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
 import { trackInitiateCheckout, trackPurchase } from '../utils/metaPixel';
 import { trackGA4BeginCheckout, trackGA4Purchase } from '../utils/ga4Ecommerce';
+import { trackTikTokInitiateCheckout, trackTikTokCompletePayment } from '../utils/tiktokPixel';
 import { couponService } from '../services/couponService';
 import { orderService } from '../services/orderService';
 import { useAuth } from '../context/AuthContext';
@@ -171,6 +172,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       hasInitiatedRef.current = true;
       trackInitiateCheckout(activeItems, activeGrandTotal);
       trackGA4BeginCheckout(activeItems, activeCouponCode);
+      trackTikTokInitiateCheckout(activeItems, activeGrandTotal);
     }
     if (!isOpen) {
       hasInitiatedRef.current = false;
@@ -279,6 +281,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       addOrder(newOrder);
       trackPurchase(newOrder);
       trackGA4Purchase(newOrder);
+      trackTikTokCompletePayment(newOrder);
 
       // Record coupon usage if applicable
       if (activeCouponCode) {

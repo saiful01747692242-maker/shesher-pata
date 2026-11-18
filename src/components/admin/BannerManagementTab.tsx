@@ -72,7 +72,7 @@ export const BannerManagementTab: React.FC<BannerManagementTabProps> = ({ onShow
     primary_button_url: 'books',
     secondary_button_text: 'এখনই অর্ডার করুন',
     secondary_button_url: 'catalog',
-    highlight_text: 'হটলাইন: ০১৭০০-০০০০০০',
+    highlight_text: 'হটলাইন: +8801747692242',
     theme: 'cream',
     display_order: 1,
     is_active: true,
@@ -727,7 +727,7 @@ export const BannerManagementTab: React.FC<BannerManagementTabProps> = ({ onShow
                     type="text"
                     value={formState.highlight_text}
                     onChange={(e) => setFormState({ ...formState, highlight_text: e.target.value })}
-                    placeholder="যেমন: হটলাইন: ০১৭০০-০০০০০০"
+                    placeholder="যেমন: হটলাইন: +8801747692242"
                     className="w-full px-3 py-2 rounded-xl border border-zinc-300 text-xs bg-zinc-50 focus:bg-white outline-none"
                   />
                 </div>

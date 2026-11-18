@@ -47,7 +47,7 @@ export const authorService = {
       const response = await fetch('/api/admin/authors');
       if (response.ok) {
         const data = await response.json();
-        if (data.authors && Array.isArray(data.authors) && data.authors.length > 0) {
+        if (Array.isArray(data.authors)) {
           this.saveToCache(data.authors);
           return data.authors;
         }

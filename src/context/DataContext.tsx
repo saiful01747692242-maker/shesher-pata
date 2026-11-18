@@ -268,7 +268,7 @@ interface DataContextType {
   updateSiteSettings: (updates: Partial<SiteSettings>) => Promise<SiteSettings>;
 
   // Management & Backup
-  resetAllData: () => void;
+  refreshAllData: () => Promise<void>;
   exportDataJSON: () => string;
   importDataJSON: (jsonString: string) => Promise<BulkImportResult>;
   importBooksBulk: (booksOrJson: any) => Promise<BulkImportResult>;
@@ -325,7 +325,7 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
 
       // Load banners from database
       bannerService.fetchBanners().then((remoteBanners) => {
-        if (remoteBanners && remoteBanners.length > 0) {
+        if (Array.isArray(remoteBanners)) {
           setBanners(remoteBanners);
         }
       });
@@ -348,7 +348,7 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
         } catch {}
       }
       categoryService.fetchCategories().then((remoteCats) => {
-        if (remoteCats && remoteCats.length > 0) {
+        if (Array.isArray(remoteCats)) {
           setCategories(remoteCats);
         }
       });
@@ -363,7 +363,7 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
         } catch {}
       }
       authorService.fetchAuthors(INITIAL_AUTHORS).then((remoteAuthors) => {
-        if (remoteAuthors && remoteAuthors.length > 0) {
+        if (Array.isArray(remoteAuthors)) {
           setAuthors(remoteAuthors);
         }
       });
@@ -378,7 +378,7 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
         } catch {}
       }
       publisherService.fetchPublishers(INITIAL_PUBLISHERS).then((remotePubs) => {
-        if (remotePubs && remotePubs.length > 0) {
+        if (Array.isArray(remotePubs)) {
           setPublishers(remotePubs);
         }
       });
@@ -403,8 +403,11 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
         }
       }).catch(() => {});
 
-      // Initial cached settings (skipped when the server already provided fresh ones)
-      if (!initialSettings) {
+      // Prefer server-rendered settings over stale browser cache.
+      if (initialSettings) {
+        setSiteSettings(initialSettings);
+        settingsService.saveToLocalCache(initialSettings);
+      } else {
         setSiteSettings(settingsService.getCachedSettings());
       }
 
@@ -1008,28 +1011,59 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
   };
 
   // Reset & Backup: Clears local cache and re-syncs live data from Supabase
-  const resetAllData = () => {
-    localStorage.removeItem(STORAGE_KEYS.BOOKS);
-    localStorage.removeItem(STORAGE_KEYS.BANNERS);
-    localStorage.removeItem(STORAGE_KEYS.CATEGORIES);
-    localStorage.removeItem(STORAGE_KEYS.AUTHORS);
-    localStorage.removeItem(STORAGE_KEYS.PUBLISHERS);
-    localStorage.removeItem(STORAGE_KEYS.ORDERS);
+  // Read-only refresh: never write DEFAULT_SETTINGS or clear live database values.
+  const refreshAllData = async (): Promise<void> => {
+    const [
+      remoteBooks,
+      remoteBanners,
+      remoteCoupons,
+      remoteCategories,
+      remoteAuthors,
+      remotePublishers,
+      remoteOrders,
+      remoteSettings,
+    ] = await Promise.all([
+      bookService.fetchBooks().catch(() => books),
+      bannerService.fetchBanners().catch(() => banners),
+      couponService.fetchAdminCoupons().catch(() => coupons),
+      categoryService.fetchCategories().catch(() => categories),
+      authorService.fetchAuthors(INITIAL_AUTHORS).catch(() => authors),
+      publisherService.fetchPublishers(INITIAL_PUBLISHERS).catch(() => publishers),
+      orderService.fetchAdminOrders().catch(() => orders),
+      settingsService.fetchSettings().catch(() => siteSettings),
+    ]);
 
-    setSiteSettings(DEFAULT_SETTINGS);
-    settingsService.saveSettings(DEFAULT_SETTINGS);
-
-    // Re-fetch all dynamic data directly from Supabase so database data is never lost or overridden
-    bookService.fetchBooks().then((remoteBooks) => {
-      if (Array.isArray(remoteBooks) && remoteBooks.length > 0) {
-        setBooks(remoteBooks);
-      }
-    });
-    bannerService.fetchBanners().then((remoteBanners) => {
-      if (Array.isArray(remoteBanners) && remoteBanners.length > 0) {
-        setBanners(remoteBanners);
-      }
-    });
+    if (Array.isArray(remoteBooks)) {
+      setBooks(remoteBooks);
+      bookService.saveToCache(remoteBooks);
+    }
+    if (Array.isArray(remoteBanners)) {
+      setBanners(remoteBanners);
+      bannerService.saveToCache(remoteBanners);
+    }
+    if (Array.isArray(remoteCoupons)) setCoupons(remoteCoupons);
+    if (Array.isArray(remoteCategories)) {
+      setCategories(remoteCategories);
+      categoryService.saveToCache(remoteCategories);
+    }
+    if (Array.isArray(remoteAuthors)) {
+      setAuthors(remoteAuthors);
+      authorService.saveToCache(remoteAuthors);
+    }
+    if (Array.isArray(remotePublishers)) {
+      setPublishers(remotePublishers);
+      publisherService.saveToCache(remotePublishers);
+    }
+    if (Array.isArray(remoteOrders) && remoteOrders.length > 0) {
+      setOrders(remoteOrders);
+      try {
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(remoteOrders));
+      } catch {}
+    }
+    if (remoteSettings) {
+      setSiteSettings(remoteSettings);
+      settingsService.saveToLocalCache(remoteSettings);
+    }
   };
 
   const exportDataJSON = (): string => {
@@ -1116,7 +1150,8 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
       if (parsed.orders && Array.isArray(parsed.orders)) setOrders(parsed.orders);
       if (parsed.siteSettings) {
         setSiteSettings(parsed.siteSettings);
-        settingsService.saveSettings(parsed.siteSettings);
+        const restoredSettings = await settingsService.saveSettings(parsed.siteSettings);
+        setSiteSettings(restoredSettings);
       }
     }
 
@@ -1164,7 +1199,7 @@ export const DataProvider: React.FC<{ children: ReactNode; initialSettings?: Sit
         deleteOrder,
         siteSettings,
         updateSiteSettings,
-        resetAllData,
+        refreshAllData,
         exportDataJSON,
         importDataJSON,
         importBooksBulk,

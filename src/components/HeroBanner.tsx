@@ -36,7 +36,7 @@ const DEFAULT_HERO_SLIDES: Slide[] = [
     headline: 'ঝামেলা ছাড়া বই কিনুন',
     subheadline: 'সর্বোচ্চ ছাড়ে, দ্রুত সময়ে!',
     description: 'অনলাইন বইয়ের নির্ভরযোগ্য আঙিনা — রবীন্দ্রনাথ, হুমায়ূন আহমেদ, ফেলুদা থেকে সমকালীন বেস্টসেলার বই শতভাগ অরিজিনাল প্রিন্টে।',
-    highlightText: 'হটলাইন: ০১৭০০-০০০০০০ / ০১৯০০-০০০০০০',
+    highlightText: 'হটলাইন: +8801747692242',
     primaryCta: 'বইসমূহ ঘুরে দেখুন',
     primaryUrl: 'books',
     secondaryCta: 'এখনই অর্ডার করুন',
@@ -225,7 +225,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({ onExploreClick, onBuyNow
                     {currentSlide.id === 'slide-1' || currentSlide.id === 'banner-hero-1'
                       ? siteSettings?.phone
                         ? `হটলাইন: ${siteSettings.phone}${siteSettings.alt_phone ? ` / ${siteSettings.alt_phone}` : ''}`
-                        : currentSlide.highlightText || 'হটলাইন: ০১৭০০-০০০০০০'
+                        : currentSlide.highlightText || 'হটলাইন: +8801747692242'
                       : currentSlide.highlightText}
                   </span>
                 </div>

@@ -1,10 +1,8 @@
 /**
  * Centralized WhatsApp Configuration for Shesher Pata (শেষের পাতা)
  * 
- * IMPORTANT:
- * Replace 'YOUR_WHATSAPP_NUMBER' with your actual WhatsApp phone number.
+ * The configured number is the store's WhatsApp contact.
  * Supported formats:
- *   - "YOUR_WHATSAPP_NUMBER" (Default placeholder)
  *   - "8801747692242"
  *   - "+880 1747-692242"
  *   - "01747692242"
@@ -15,7 +13,7 @@
 
 export const WHATSAPP_CONFIG = {
   // Destination WhatsApp number (can be edited here or in Admin Settings)
-  phoneNumber: 'YOUR_WHATSAPP_NUMBER',
+  phoneNumber: '8801747692242',
 
   // Optional prefilled message when opening WhatsApp chat
   defaultMessage: 'Hello, I need help with an order from Shesher Pata.',
@@ -31,13 +29,10 @@ export const WHATSAPP_CONFIG = {
  * Auto-prefixes Bangladesh country code (88) if 11-digit local format (01XXXXXXXXX) is provided.
  */
 export function buildWhatsAppUrl(phoneNumber?: string, message?: string): string {
-  const rawNumber = (phoneNumber || WHATSAPP_CONFIG.phoneNumber || '').trim();
-
-  // If still using placeholder, use the placeholder directly
-  if (rawNumber === 'YOUR_WHATSAPP_NUMBER' || !rawNumber) {
-    const textParam = message ? `?text=${encodeURIComponent(message)}` : '';
-    return `https://wa.me/YOUR_WHATSAPP_NUMBER${textParam}`;
-  }
+  const suppliedNumber = (phoneNumber || WHATSAPP_CONFIG.phoneNumber || '').trim();
+  const rawNumber = !suppliedNumber || suppliedNumber === 'YOUR_WHATSAPP_NUMBER'
+    ? '8801747692242'
+    : suppliedNumber;
 
   // Strip all non-digit characters (+, -, space, (), etc.)
   let digits = rawNumber.replace(/\D/g, '');

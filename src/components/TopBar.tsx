@@ -12,7 +12,7 @@ interface TopBarProps {
 export const TopBar: React.FC<TopBarProps> = ({ onNavigate, onOpenTrackOrder }) => {
   const { siteSettings } = useData();
 
-  const phone = siteSettings?.phone || '০১৭০০-০০০০০০';
+  const phone = siteSettings?.phone || '+8801747692242';
   const badge = siteSettings?.announcement_badge || 'অফার';
   const announcementText = siteSettings?.announcement_text || 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!';
 

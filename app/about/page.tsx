@@ -22,9 +22,9 @@ export default function AboutPage() {
   const [isTrackOrderOpen, setIsTrackOrderOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
 
-  const phone = siteSettings?.phone || '০১৭০০-০০০০০০';
+  const phone = siteSettings?.phone || '+8801747692242';
   const email = siteSettings?.email || 'support@shesherpata.com';
-  const address = siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫';
+  const address = siteSettings?.address || 'Mirpur 14, Dhaka, Bangladesh';
   const hours = siteSettings?.support_hours || 'সকাল ৯টা - রাত ১০টা';
   const aboutText = siteSettings?.about_text || '"শেষের পাতা" বাংলাদেশের একটি নির্ভরযোগ্য অনলাইন বইয়ের প্ল্যাটফর্ম। দেশি-বিদেশি অমর সাহিত্যকর্ম, আধুনিক অনুবাদ এবং জনপ্রিয় প্রকাশনীর বই সরাসরি পাঠকদের ঠিকানায় পৌঁছে দেওয়াই আমাদের মূল লক্ষ্য।';
 

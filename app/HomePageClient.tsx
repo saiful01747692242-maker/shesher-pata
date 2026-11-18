@@ -310,8 +310,8 @@ export default function HomePage({ initialBooks }: { initialBooks?: Book[] }) {
                     {siteSettings?.about_text || '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।'}
                   </p>
                   <div className="p-4 border border-amber-200 rounded-2xl text-xs space-y-1 bg-[#FAF8F4] text-zinc-700">
-                    <p><strong>ঠিকানা:</strong> {siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫'}</p>
-                    <p><strong>হেল্পলাইন:</strong> {siteSettings?.phone || '০১৭০০-০০০০০০'} ({siteSettings?.support_hours || 'সকাল ৯টা - রাত ১০টা'})</p>
+                    <p><strong>ঠিকানা:</strong> {siteSettings?.address || 'Mirpur 14, Dhaka, Bangladesh'}</p>
+                    <p><strong>হেল্পলাইন:</strong> {siteSettings?.phone || '+8801747692242'} ({siteSettings?.support_hours || 'সকাল ৯টা - রাত ১০টা'})</p>
                     <p><strong>ইমেইল:</strong> {siteSettings?.email || 'support@shesherpata.com'}</p>
                   </div>
                 </>

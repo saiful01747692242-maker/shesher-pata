@@ -48,7 +48,7 @@ export const categoryService = {
       const response = await fetch('/api/admin/categories');
       if (response.ok) {
         const data = await response.json();
-        if (data.categories && Array.isArray(data.categories) && data.categories.length > 0) {
+        if (Array.isArray(data.categories)) {
           this.saveToCache(data.categories);
           return data.categories;
         }

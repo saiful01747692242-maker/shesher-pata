@@ -14,6 +14,7 @@ import { reviewService } from '../services/reviewService';
 import { formatPrice, toBengaliNumber } from '../utils/formatters';
 import { trackViewContent } from '../utils/metaPixel';
 import { trackGA4ViewItem } from '../utils/ga4Ecommerce';
+import { trackTikTokViewContent } from '../utils/tiktokPixel';
 import { matchesCategory, matchesAuthor } from '../utils/filterUtils';
 
 interface ProductDetailsModalProps {
@@ -170,6 +171,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   useEffect(() => {
     if (book) {
       trackViewContent(book);
+      trackTikTokViewContent(book);
       setQuantity(book.stock > 0 ? 1 : 0);
       setActiveImage(book.cover_image || book.image);
     }

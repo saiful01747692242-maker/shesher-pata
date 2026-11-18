@@ -90,7 +90,7 @@ function AdminDashboardContent() {
     deleteOrder,
     siteSettings,
     updateSiteSettings,
-    resetAllData,
+    refreshAllData,
     exportDataJSON,
     importDataJSON,
     importBooksBulk,
@@ -1137,17 +1137,17 @@ function AdminDashboardContent() {
   // STORE & CONTACT SETTINGS MANAGEMENT
   // -------------------------------------------------------------
   const [contactForm, setContactForm] = useState({
-    phone: siteSettings?.phone || '০১৭০০-০০০০০০',
-    alt_phone: siteSettings?.alt_phone || '০১৯০০-০০০০০০',
+    phone: siteSettings?.phone || '+8801747692242',
+    alt_phone: siteSettings?.alt_phone || '',
     email: siteSettings?.email || 'support@shesherpata.com',
-    address: siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫',
+    address: siteSettings?.address || 'Mirpur 14, Dhaka, Bangladesh',
     support_hours: siteSettings?.support_hours || 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
     announcement_badge: siteSettings?.announcement_badge || 'অফার',
     announcement_text: siteSettings?.announcement_text || 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!',
     about_text: siteSettings?.about_text || '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।',
-    facebook_url: siteSettings?.facebook_url || 'https://facebook.com',
-    instagram_url: siteSettings?.instagram_url || 'https://instagram.com',
-    whatsapp_number: siteSettings?.whatsapp_number || '',
+    facebook_url: siteSettings?.facebook_url || '',
+    instagram_url: siteSettings?.instagram_url || '',
+    whatsapp_number: siteSettings?.whatsapp_number || '8801747692242',
     delivery_charge_inside: siteSettings?.delivery_charge_inside ?? 60,
     delivery_charge_outside: siteSettings?.delivery_charge_outside ?? 120,
     free_delivery_threshold: siteSettings?.free_delivery_threshold ?? 1500,
@@ -1157,17 +1157,17 @@ function AdminDashboardContent() {
   useEffect(() => {
     if (siteSettings) {
       setContactForm({
-        phone: siteSettings.phone || '০১৭০০-০০০০০০',
-        alt_phone: siteSettings.alt_phone || '০১৯০০-০০০০০০',
+        phone: siteSettings.phone || '+8801747692242',
+        alt_phone: siteSettings.alt_phone || '',
         email: siteSettings.email || 'support@shesherpata.com',
-        address: siteSettings.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫',
+        address: siteSettings.address || 'Mirpur 14, Dhaka, Bangladesh',
         support_hours: siteSettings.support_hours || 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
         announcement_badge: siteSettings.announcement_badge || 'অফার',
         announcement_text: siteSettings.announcement_text || 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!',
         about_text: siteSettings.about_text || '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।',
-        facebook_url: siteSettings.facebook_url || 'https://facebook.com',
-        instagram_url: siteSettings.instagram_url || 'https://instagram.com',
-        whatsapp_number: siteSettings.whatsapp_number || '',
+        facebook_url: siteSettings.facebook_url || '',
+        instagram_url: siteSettings.instagram_url || '',
+        whatsapp_number: siteSettings.whatsapp_number || '8801747692242',
         delivery_charge_inside: siteSettings.delivery_charge_inside ?? 60,
         delivery_charge_outside: siteSettings.delivery_charge_outside ?? 120,
         free_delivery_threshold: siteSettings.free_delivery_threshold ?? 1500,
@@ -3001,7 +3001,7 @@ function AdminDashboardContent() {
                   </div>
                   <div className="flex items-center gap-2 text-zinc-400 text-[11px]">
                     <Phone className="w-3 h-3 text-[#E5A913]" />
-                    <span>{contactForm.phone || '০১৭০০-০০০০০০'}</span>
+                    <span>{contactForm.phone || '+8801747692242'}</span>
                   </div>
                 </div>
 
@@ -3042,7 +3042,7 @@ function AdminDashboardContent() {
                       rows={2}
                       value={contactForm.address}
                       onChange={(e) => setContactForm({ ...contactForm, address: e.target.value })}
-                      placeholder="যেমন: কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫"
+                      placeholder="যেমন: Mirpur 14, Dhaka, Bangladesh"
                       className="w-full px-4 py-3 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all resize-none"
                     />
                     <p className="text-[11px] text-zinc-500">
@@ -3067,7 +3067,7 @@ function AdminDashboardContent() {
                         type="text"
                         value={contactForm.phone}
                         onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
-                        placeholder="যেমন: ০১৭০০-০০০০০০"
+                        placeholder="যেমন: +8801XXXXXXXXX"
                         className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
                       />
                     </div>
@@ -3080,7 +3080,7 @@ function AdminDashboardContent() {
                         type="text"
                         value={contactForm.alt_phone}
                         onChange={(e) => setContactForm({ ...contactForm, alt_phone: e.target.value })}
-                        placeholder="যেমন: ০১৯০০-০০০০০০"
+                        placeholder="ঐচ্ছিক বিকল্প নম্বর"
                         className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
                       />
                     </div>
@@ -3189,7 +3189,7 @@ function AdminDashboardContent() {
                         type="url"
                         value={contactForm.facebook_url}
                         onChange={(e) => setContactForm({ ...contactForm, facebook_url: e.target.value })}
-                        placeholder="https://facebook.com/..."
+                        placeholder="https://facebook.com/your-page"
                         className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
                       />
                     </div>
@@ -3202,7 +3202,7 @@ function AdminDashboardContent() {
                         type="url"
                         value={contactForm.instagram_url}
                         onChange={(e) => setContactForm({ ...contactForm, instagram_url: e.target.value })}
-                        placeholder="https://instagram.com/..."
+                        placeholder="https://instagram.com/your-profile"
                         className="w-full px-4 py-2.5 rounded-xl border border-zinc-300 bg-zinc-50 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"
                       />
                     </div>
@@ -3860,9 +3860,9 @@ function AdminDashboardContent() {
                 <div className="flex items-center gap-3 text-rose-900">
                   <AlertCircle className="w-6 h-6 text-rose-600" />
                   <div>
-                    <h3 className="text-base font-bold">ক্যাশ ও সেটিংস রিসেট (Cache Reset & Sync)</h3>
+                    <h3 className="text-base font-bold">লাইভ ডেটা রিফ্রেশ (Refresh Live Data)</h3>
                     <p className="text-xs text-rose-700">
-                      এটি ব্রাউজারের লোকাল ক্যাশ পরিষ্কার করে সেন্ট্রাল Supabase ডাটাবেজ থেকে সর্বশেষ লাইভ ডেটা রিফ্রেশ করবে। সেন্ট্রাল ডাটাবেজের লাইভ বই অক্ষত থাকবে।
+                      এটি Supabase থেকে বই, ক্যাটাগরি, কুপন, অর্ডার ও সাইট সেটিংস পুনরায় লোড করবে। কোনো লাইভ ডেটা বা সেটিংস ডিফল্টে রিসেট করবে না।
                     </p>
                   </div>
                 </div>
@@ -3871,17 +3871,23 @@ function AdminDashboardContent() {
                   onClick={() => {
                     if (
                       confirm(
-                        'আপনি কি ব্রাউজারের লোকাল ক্যাশ পরিষ্কার করে সেন্ট্রাল ডাটাবেজ থেকে সকল ডেটা রিফ্রেশ করতে চান?'
+                        'আপনি কি Supabase থেকে সর্বশেষ লাইভ ডেটা রিফ্রেশ করতে চান? এতে কোনো ডেটা বা সেটিংস মুছে যাবে না।'
                       )
                     ) {
-                      resetAllData();
-                      showNotice('লোকাল ক্যাশ সফলভাবে পরিষ্কার করে সেন্ট্রাল ডাটাবেজ থেকে লাইভ ডেটা সিঙ্ক করা হয়েছে!');
+                      void (async () => {
+                        try {
+                          await refreshAllData();
+                          showNotice('Supabase থেকে লাইভ ডেটা সফলভাবে রিফ্রেশ হয়েছে!');
+                        } catch {
+                          showNotice('লাইভ ডেটা রিফ্রেশ করা যায়নি। আবার চেষ্টা করুন।', 'error');
+                        }
+                      })();
                     }
                   }}
                   className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 cursor-pointer transition-all shadow-sm"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  <span>ক্যাশ রিসেট ও লাইভ রিফ্রেশ</span>
+                  <span>লাইভ ডেটা রিফ্রেশ</span>
                 </button>
               </div>
             </div>
@@ -4718,8 +4724,8 @@ function AdminDashboardContent() {
               <div className="flex justify-between items-start border-b border-zinc-200 pb-4">
                 <div>
                   <h2 className="text-xl font-black tracking-tight">শেষের পাতা</h2>
-                  <p className="text-xs text-zinc-500">কাঁটাবন বইয়ের মার্কেট, ঢাকা-১২০৫</p>
-                  <p className="text-xs text-zinc-500">ফোন: +৮৮০ ১৭০০-০০০০০০</p>
+                  <p className="text-xs text-zinc-500">Mirpur 14, Dhaka, Bangladesh</p>
+                  <p className="text-xs text-zinc-500">ফোন: +৮৮০ ১৭৪৭-৬৯২২৪২</p>
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-black text-amber-700">

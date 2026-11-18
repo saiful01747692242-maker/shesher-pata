@@ -43,7 +43,7 @@ export const publisherService = {
       const response = await fetch('/api/admin/publishers');
       if (response.ok) {
         const data = await response.json();
-        if (data.publishers && Array.isArray(data.publishers) && data.publishers.length > 0) {
+        if (Array.isArray(data.publishers)) {
           this.saveToCache(data.publishers);
           return data.publishers;
         }

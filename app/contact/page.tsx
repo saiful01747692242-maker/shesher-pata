@@ -31,9 +31,9 @@ export default function ContactPage() {
   const [isSending, setIsSending] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
 
-  const storePhone = siteSettings?.phone || '০১৭০০-০০০০০০';
+  const storePhone = siteSettings?.phone || '+8801747692242';
   const storeEmail = siteSettings?.email || 'support@shesherpata.com';
-  const storeAddress = siteSettings?.address || 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫';
+  const storeAddress = siteSettings?.address || 'Mirpur 14, Dhaka, Bangladesh';
   const supportHours = siteSettings?.support_hours || 'সকাল ৯টা - রাত ১০টা';
   const whatsappNumber = siteSettings?.whatsapp_number || storePhone;
 

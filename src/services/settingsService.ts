@@ -6,23 +6,23 @@ const SETTINGS_CHANGED_EVENT = 'shesher_pata_settings_changed';
 
 export const DEFAULT_SETTINGS: SiteSettings = {
   id: 'default_settings',
-  meta_pixel_id: '',
-  meta_pixel_enabled: false,
-  phone: '০১৭০০-০০০০০০',
-  alt_phone: '০১৯০০-০০০০০০',
+  meta_pixel_id: '1650713860016627',
+  meta_pixel_enabled: true,
+  phone: '+8801747692242',
+  alt_phone: '',
   email: 'support@shesherpata.com',
-  address: 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫',
+  address: 'Mirpur 14, Dhaka, Bangladesh',
   support_hours: 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
   announcement_badge: 'অফার',
   announcement_text: 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!',
   about_text: '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।',
-  facebook_url: 'https://facebook.com',
-  instagram_url: 'https://instagram.com',
-  whatsapp_number: '',
+  facebook_url: '',
+  instagram_url: '',
+  whatsapp_number: '8801747692242',
   steadfast_enabled: false,
-  delivery_charge_inside: 60,
-  delivery_charge_outside: 120,
-  free_delivery_threshold: 1500,
+  delivery_charge_inside: 70,
+  delivery_charge_outside: 110,
+  free_delivery_threshold: 0,
   updated_at: new Date().toISOString(),
 };
 
@@ -81,19 +81,19 @@ export const settingsService = {
       if (data) {
         const settings: SiteSettings = {
           id: data.id || 'default_settings',
-          meta_pixel_id: data.meta_pixel_id || '',
-          meta_pixel_enabled: Boolean(data.meta_pixel_enabled),
-          phone: data.phone || cached.phone || DEFAULT_SETTINGS.phone,
-          alt_phone: data.alt_phone || cached.alt_phone || DEFAULT_SETTINGS.alt_phone,
-          email: data.email || cached.email || DEFAULT_SETTINGS.email,
-          address: data.address || cached.address || DEFAULT_SETTINGS.address,
-          support_hours: data.support_hours || cached.support_hours || DEFAULT_SETTINGS.support_hours,
-          announcement_badge: data.announcement_badge || cached.announcement_badge || DEFAULT_SETTINGS.announcement_badge,
-          announcement_text: data.announcement_text || cached.announcement_text || DEFAULT_SETTINGS.announcement_text,
-          about_text: data.about_text || cached.about_text || DEFAULT_SETTINGS.about_text,
-          facebook_url: data.facebook_url || cached.facebook_url || DEFAULT_SETTINGS.facebook_url,
-          instagram_url: data.instagram_url || cached.instagram_url || DEFAULT_SETTINGS.instagram_url,
-          whatsapp_number: data.whatsapp_number || cached.whatsapp_number || DEFAULT_SETTINGS.whatsapp_number,
+          meta_pixel_id: data.meta_pixel_id ?? DEFAULT_SETTINGS.meta_pixel_id,
+          meta_pixel_enabled: data.meta_pixel_enabled ?? DEFAULT_SETTINGS.meta_pixel_enabled,
+          phone: data.phone ?? cached.phone ?? DEFAULT_SETTINGS.phone,
+          alt_phone: data.alt_phone ?? cached.alt_phone ?? DEFAULT_SETTINGS.alt_phone,
+          email: data.email ?? cached.email ?? DEFAULT_SETTINGS.email,
+          address: data.address ?? cached.address ?? DEFAULT_SETTINGS.address,
+          support_hours: data.support_hours ?? cached.support_hours ?? DEFAULT_SETTINGS.support_hours,
+          announcement_badge: data.announcement_badge ?? cached.announcement_badge ?? DEFAULT_SETTINGS.announcement_badge,
+          announcement_text: data.announcement_text ?? cached.announcement_text ?? DEFAULT_SETTINGS.announcement_text,
+          about_text: data.about_text ?? cached.about_text ?? DEFAULT_SETTINGS.about_text,
+          facebook_url: data.facebook_url ?? cached.facebook_url ?? DEFAULT_SETTINGS.facebook_url,
+          instagram_url: data.instagram_url ?? cached.instagram_url ?? DEFAULT_SETTINGS.instagram_url,
+          whatsapp_number: data.whatsapp_number ?? cached.whatsapp_number ?? DEFAULT_SETTINGS.whatsapp_number,
           steadfast_enabled: data.steadfast_enabled !== undefined ? Boolean(data.steadfast_enabled) : (cached.steadfast_enabled ?? DEFAULT_SETTINGS.steadfast_enabled),
           delivery_charge_inside: data.delivery_charge_inside !== undefined && data.delivery_charge_inside !== null ? Number(data.delivery_charge_inside) : (cached.delivery_charge_inside ?? DEFAULT_SETTINGS.delivery_charge_inside),
           delivery_charge_outside: data.delivery_charge_outside !== undefined && data.delivery_charge_outside !== null ? Number(data.delivery_charge_outside) : (cached.delivery_charge_outside ?? DEFAULT_SETTINGS.delivery_charge_outside),
@@ -117,46 +117,37 @@ export const settingsService = {
    */
   async saveSettings(updates: Partial<SiteSettings>): Promise<SiteSettings> {
     const current = this.getCachedSettings();
+
+    // Send only fields the admin actually changed. Sending the whole cached
+    // object can overwrite newer server values (especially Meta Pixel settings).
+    const response = await fetch('/api/admin/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('অননুমোদিত অ্যাক্সেস: শুধুমাত্র অনুমোদিত অ্যাডমিন সেটিংস পরিবর্তন করতে পারবেন।');
+      }
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || ('সার্ভার ত্রুটি: ' + response.statusText));
+    }
+
+    const resData = await response.json();
     const updatedSettings: SiteSettings = {
       ...current,
       ...updates,
-      updated_at: new Date().toISOString(),
+      ...(resData.settings || {}),
+      updated_at: resData.settings?.updated_at || new Date().toISOString(),
     };
 
-    // 1. Send update to secure server-side admin endpoint
-    try {
-      const response = await fetch('/api/admin/settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updatedSettings),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('অননুমোদিত অ্যাক্সেস: শুধুমাত্র অনুমোদিত অ্যাডমিন সেটিংস পরিবর্তন করতে পারবেন।');
-        }
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `সার্ভার ত্রুটি: ${response.statusText}`);
-      }
-
-      const resData = await response.json();
-      if (resData.settings) {
-        Object.assign(updatedSettings, resData.settings);
-      }
-    } catch (err: any) {
-      // If unauthorized, rethrow to alert the user/caller
-      if (err.message && err.message.includes('অননুমোদিত')) {
-        throw err;
-      }
-      console.warn('[Settings] Server API failed, falling back to local cache update:', err.message);
-    }
-
-    // 2. Update local cache and broadcast
+    // Cache only after the server confirms the database write succeeded.
     this.saveToLocalCache(updatedSettings);
     this.notifyListeners(updatedSettings);
-
     return updatedSettings;
   },
 

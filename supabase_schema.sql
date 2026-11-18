@@ -276,23 +276,23 @@ CREATE TRIGGER on_auth_user_created
 
 CREATE TABLE IF NOT EXISTS public.site_settings (
     id TEXT PRIMARY KEY DEFAULT 'default_settings',
-    meta_pixel_id TEXT DEFAULT '',
-    meta_pixel_enabled BOOLEAN DEFAULT FALSE,
-    phone TEXT DEFAULT '০১৭০০-০০০০০০',
-    alt_phone TEXT DEFAULT '০১৯০০-০০০০০০',
+    meta_pixel_id TEXT DEFAULT '1650713860016627',
+    meta_pixel_enabled BOOLEAN DEFAULT TRUE,
+    phone TEXT DEFAULT '+8801747692242',
+    alt_phone TEXT DEFAULT '',
     email TEXT DEFAULT 'support@shesherpata.com',
-    address TEXT DEFAULT 'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫',
+    address TEXT DEFAULT 'Mirpur 14, Dhaka, Bangladesh',
     support_hours TEXT DEFAULT 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
     announcement_badge TEXT DEFAULT 'অফার',
     announcement_text TEXT DEFAULT 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!',
     about_text TEXT DEFAULT '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।',
-    facebook_url TEXT DEFAULT 'https://facebook.com',
-    instagram_url TEXT DEFAULT 'https://instagram.com',
-    whatsapp_number TEXT DEFAULT '',
+    facebook_url TEXT DEFAULT '',
+    instagram_url TEXT DEFAULT '',
+    whatsapp_number TEXT DEFAULT '8801747692242',
     steadfast_enabled BOOLEAN DEFAULT FALSE,
-    delivery_charge_inside NUMERIC DEFAULT 60,
-    delivery_charge_outside NUMERIC DEFAULT 120,
-    free_delivery_threshold NUMERIC DEFAULT 1500,
+    delivery_charge_inside NUMERIC DEFAULT 70,
+    delivery_charge_outside NUMERIC DEFAULT 110,
+    free_delivery_threshold NUMERIC DEFAULT 0,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -322,12 +322,12 @@ INSERT INTO public.site_settings (
     updated_at
 )
 VALUES (
-    'default_settings', '', false,
-    '০১৭০০-০০০০০০', '০১৯০০-০০০০০০', 'support@shesherpata.com',
-    'কাঁটাবন বইয়ের মার্কেট, নিউ এলিফ্যান্ট রোড, ঢাকা-১২০৫', 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
+    'default_settings', '1650713860016627', true,
+    '+8801747692242', '', 'support@shesherpata.com',
+    'Mirpur 14, Dhaka, Bangladesh', 'প্রতিদিন সকাল ৯টা হতে রাত ১০টা পর্যন্ত',
     'অফার', 'বইমেলা বিশেষ ছাড় — SHESHER10 কুপনে অতিরিক্ত ১০% ছাড়!',
     '"শেষের পাতা" কেবল একটি অনলাইন বইয়ের দোকান নয়, এটি প্রতিটি বইপ্রেমীর মনের একটি শান্তির আঙিনা। আমরা বিশ্বাস করি একটি ভালো বই একজন মানুষের জীবন বদলে দিতে পারে।',
-    'https://facebook.com', 'https://instagram.com', '',
+    '', '', '8801747692242',
     timezone('utc'::text, now())
 )
 ON CONFLICT (id) DO NOTHING;

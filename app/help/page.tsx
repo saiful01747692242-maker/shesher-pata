@@ -25,7 +25,7 @@ export default function HelpPage() {
 
   const deliveryInside = siteSettings?.delivery_charge_inside || 60;
   const deliveryOutside = siteSettings?.delivery_charge_outside || 120;
-  const phone = siteSettings?.phone || '০১৭০০-০০০০০০';
+  const phone = siteSettings?.phone || '+8801747692242';
 
   const faqs = [
     {
