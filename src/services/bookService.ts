@@ -560,7 +560,7 @@ export const bookService = {
     formData.append('file', file);
 
     // Generate a lightweight WebP cover in the browser for book covers only.
-    // The original upload is still retained separately in Supabase Storage.
+    // The upload API stores only this WebP for new book covers; the original is not stored.
     if (options?.type === 'book' && bucket === 'book-covers' && typeof window !== 'undefined') {
       try {
         if (typeof createImageBitmap === 'function') {
