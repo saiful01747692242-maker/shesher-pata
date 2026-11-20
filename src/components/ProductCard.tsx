@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Image from 'next/image';
 import { ShoppingCart, Heart, Eye } from 'lucide-react';
 import { Book } from '../types';
 import { getBookUrl } from '../utils/bookUrl';
@@ -73,17 +72,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         onClick={() => onOpenDetails(book)}
         className="relative aspect-[3/4] w-full bg-[#FAF7F0] p-4 flex items-center justify-center cursor-pointer border-b-[3.5px] border-[#DEB038]"
       >
-        <Image
+        <img
           src={book.image || book.cover_image || '/og-image.png'}
           alt={book.title}
           width={360}
           height={480}
-          sizes="(max-width: 640px) 45vw, (max-width: 1024px) 22vw, 180px"
-          quality={70}
+          loading="lazy"
+          decoding="async"
           className={`h-full w-auto max-w-full object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-md ${
             book.stock <= 0 ? 'opacity-70 grayscale-[25%]' : ''
           }`}
-        />
+/>
 
         {/* Quick View and Buy Now Buttons on Desktop Hover */}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center gap-1.5 pointer-events-none p-2">
