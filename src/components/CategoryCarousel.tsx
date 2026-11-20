@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useRef } from 'react';
-import Image from 'next/image';
 import { Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { matchesCategory, normalizeBengali, isAllCategory } from '../utils/filterUtils';
@@ -112,13 +111,13 @@ export const CategoryCarousel: React.FC<CategoryCarouselProps> = ({
               >
                 {/* Category Image Box */}
                 <div className="relative w-14 h-12 sm:w-16 sm:h-14 rounded-lg overflow-hidden mb-1.5 bg-zinc-100 border border-zinc-100 flex items-center justify-center">
-                  <Image
+                  <img
                     src={cat.image || '/images/logo.jpg'}
                     alt={cat.name}
                     width={160}
                     height={140}
-                    sizes="64px"
-                    quality={65}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>
