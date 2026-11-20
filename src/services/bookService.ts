@@ -558,6 +558,41 @@ export const bookService = {
   ): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
+
+    // Generate a lightweight WebP cover in the browser for book covers only.
+    // The original upload is still retained separately in Supabase Storage.
+    if (options?.type === 'book' && bucket === 'book-covers' && typeof window !== 'undefined') {
+      try {
+        if (typeof createImageBitmap === 'function') {
+          const bitmap = await createImageBitmap(file);
+          const maxWidth = 960;
+          const maxHeight = 1280;
+          const scale = Math.min(1, maxWidth / bitmap.width, maxHeight / bitmap.height);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          const context = canvas.getContext('2d');
+          if (context) {
+            context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            const webpBlob = await new Promise<Blob | null>((resolve) =>
+              canvas.toBlob(resolve, 'image/webp', 0.82)
+            );
+            if (webpBlob && webpBlob.type === 'image/webp') {
+              const baseName = file.name.replace(/\.[^.]+$/, '') || 'book-cover';
+              formData.append('optimizedFile', new File([webpBlob], `${baseName}.webp`, {
+                type: 'image/webp',
+                lastModified: Date.now(),
+              }));
+            }
+          }
+          bitmap.close();
+        }
+      } catch (optimizationError) {
+        // Keep the original upload path working if this browser cannot encode WebP.
+        console.warn('[bookService] Cover optimization skipped:', optimizationError);
+      }
+    }
+
     formData.append('bucket', bucket);
     if (options?.folder) formData.append('folder', options.folder);
     if (options?.recordId) formData.append('recordId', options.recordId);
