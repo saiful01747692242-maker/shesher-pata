@@ -476,7 +476,7 @@ function AdminDashboardContent() {
       showNotice('ছবি সফলভাবে স্টোরেজে আপলোড হয়েছে!');
     } catch (uploadErr: any) {
       console.error('[Admin Upload Error]:', uploadErr);
-      if (options?.type === 'category' || options?.type === 'author') {
+      if (options?.type === 'category' || options?.type === 'author' || options?.type === 'book') {
         showNotice(uploadErr.message || 'ছবি আপলোড ব্যর্থ হয়েছে। দয়া করে পুনরায় চেষ্টা করুন।', 'error');
       } else {
         console.warn('[Admin Upload] Supabase Storage upload failed, falling back to local base64:', uploadErr.message);
@@ -4156,7 +4156,12 @@ function AdminDashboardContent() {
                         ref={bookImageInputRef}
                         accept="image/*"
                         onChange={(e) =>
-                          handleFileUpload(e, (url) => setBookForm((prev) => ({ ...prev, image: url })))
+                          handleFileUpload(
+                            e,
+                            (url) => setBookForm((prev) => ({ ...prev, image: url })),
+                            'book-covers',
+                            { type: 'book' }
+                          )
                         }
                         className="hidden"
                       />
