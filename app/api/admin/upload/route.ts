@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const optimizedFile = formData.get('optimizedFile') as File | null;
     const bucket = (formData.get('bucket') as string) || 'book-covers';
     const folder = (formData.get('folder') as string) || '';
     const recordId = (formData.get('recordId') as string) || '';
@@ -66,6 +67,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (optimizedFile && (bucket !== 'book-covers' || optimizedFile.type !== 'image/webp' || !optimizedFile.name.toLowerCase().endsWith('.webp'))) {
+      return NextResponse.json(
+        { error: 'অপটিমাইজড কভার ফাইলটি সঠিক WebP ফরম্যাটে নেই।' },
+        { status: 400 }
+      );
+    }
+
     const uniqueId = crypto.randomUUID();
     const cleanBaseName = file.name
       .replace(/\.[^/.]+$/, '')
@@ -87,12 +95,13 @@ export async function POST(request: NextRequest) {
     const fileName = `${Date.now()}-${uniqueId}-${cleanBaseName || 'upload'}.${extension || 'jpg'}`;
     const filePath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Keep the original file intact in Storage; use the smaller WebP for the storefront.
+    const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(filePath, buffer, {
         contentType: file.type || 'image/jpeg',
-        upsert: true,
+        cacheControl: '31536000',
+        upsert: false,
       });
 
     if (uploadError) {
@@ -103,16 +112,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
+    let publicFilePath = filePath;
+    let publicFileName = fileName;
+    let optimized = false;
+
+    if (optimizedFile && bucket === 'book-covers') {
+      const optimizedBuffer = Buffer.from(await optimizedFile.arrayBuffer());
+      const optimizedFileName = `${Date.now()}-${uniqueId}-${cleanBaseName || 'book-cover'}-optimized.webp`;
+      const optimizedFilePath = targetFolder ? `${targetFolder}/${optimizedFileName}` : optimizedFileName;
+      const { error: optimizedUploadError } = await supabase.storage
+        .from(bucket)
+        .upload(optimizedFilePath, optimizedBuffer, {
+          contentType: 'image/webp',
+          cacheControl: '31536000',
+          upsert: false,
+        });
+
+      if (optimizedUploadError) {
+        console.warn('[Admin Upload API] WebP upload failed; serving original image:', optimizedUploadError.message);
+      } else {
+        publicFilePath = optimizedFilePath;
+        publicFileName = optimizedFileName;
+        optimized = true;
+      }
+    }
+
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(publicFilePath);
+    const { data: originalUrlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
 
     return NextResponse.json({
       success: true,
       url: urlData.publicUrl,
-      fileName,
-      filePath,
+      originalUrl: originalUrlData.publicUrl,
+      optimized,
+      fileName: publicFileName,
+      filePath: publicFilePath,
+      originalFilePath: filePath,
       bucket,
     });
   } catch (err: any) {
