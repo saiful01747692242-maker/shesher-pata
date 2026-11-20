@@ -4168,7 +4168,12 @@ function AdminDashboardContent() {
                         ref={bookImageInputRef}
                         accept="image/*"
                         onChange={(e) =>
-                          handleFileUpload(e, (url) => setBookForm((prev) => ({ ...prev, image: url })))
+                          handleFileUpload(
+                            e,
+                            (url) => setBookForm((prev) => ({ ...prev, image: url })),
+                            'book-covers',
+                            { type: 'book' }
+                          )
                         }
                         className="hidden"
                       />
