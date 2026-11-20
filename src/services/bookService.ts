@@ -582,7 +582,7 @@ export const bookService = {
           if (!webpBlob || webpBlob.type !== 'image/webp') {
             throw new Error('এই ছবিটি WebP ফরম্যাটে রূপান্তর করা যায়নি।');
           }
-          const baseName = file.name.replace(/\\.[^.]+$/, '') || 'book-cover';
+          const baseName = file.name.replace(/\.[^.]+$/, '') || 'book-cover';
           formData.append('optimizedFile', new File([webpBlob], `${baseName}.webp`, {
             type: 'image/webp',
             lastModified: Date.now(),
