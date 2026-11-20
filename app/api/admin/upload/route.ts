@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const optimizedFile = formData.get('optimizedFile') as File | null;
     const bucket = (formData.get('bucket') as string) || 'book-covers';
     const folder = (formData.get('folder') as string) || '';
     const recordId = (formData.get('recordId') as string) || '';
@@ -87,32 +88,73 @@ export async function POST(request: NextRequest) {
     const fileName = `${Date.now()}-${uniqueId}-${cleanBaseName || 'upload'}.${extension || 'jpg'}`;
     const filePath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(bucket)
-      .upload(filePath, buffer, {
-        contentType: file.type || 'image/jpeg',
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error('[Admin Upload API] Storage upload error:', uploadError);
+    if (optimizedFile && (bucket !== 'book-covers' || optimizedFile.type !== 'image/webp' || !optimizedFile.name.toLowerCase().endsWith('.webp'))) {
       return NextResponse.json(
-        { error: `স্টোরেজ আপলোড ব্যর্থ: ${uploadError.message}` },
-        { status: 500 }
+        { error: 'অপটিমাইজড কভার ফাইলটি সঠিক WebP ফরম্যাটে নেই।' },
+        { status: 400 }
       );
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
+    let publicFilePath = filePath;
+    let publicFileName = fileName;
+    let optimized = false;
+
+    if (type === 'book' && bucket === 'book-covers') {
+      // New book covers are stored ONLY as WebP. The original is held in memory
+      // for conversion/validation and is never persisted to Supabase Storage.
+      if (!optimizedFile) {
+        return NextResponse.json(
+          { error: 'বইয়ের কভার WebP-তে অপটিমাইজ করা যায়নি। অন্য ছবি দিয়ে আবার চেষ্টা করুন।' },
+          { status: 400 }
+        );
+      }
+
+      const optimizedBuffer = Buffer.from(await optimizedFile.arrayBuffer());
+      publicFileName = `${Date.now()}-${uniqueId}-${cleanBaseName || 'book-cover'}.webp`;
+      publicFilePath = targetFolder ? `${targetFolder}/${publicFileName}` : publicFileName;
+      const { error: optimizedUploadError } = await supabase.storage
+        .from(bucket)
+        .upload(publicFilePath, optimizedBuffer, {
+          contentType: 'image/webp',
+          cacheControl: '31536000',
+          upsert: false,
+        });
+
+      if (optimizedUploadError) {
+        console.error('[Admin Upload API] WebP upload error:', optimizedUploadError);
+        return NextResponse.json(
+          { error: `WebP কভার আপলোড ব্যর্থ: ${optimizedUploadError.message}` },
+          { status: 500 }
+        );
+      }
+      optimized = true;
+    } else {
+      // Preserve the existing upload behavior for non-book assets.
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, buffer, {
+          contentType: file.type || 'image/jpeg',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('[Admin Upload API] Storage upload error:', uploadError);
+        return NextResponse.json(
+          { error: `স্টোরেজ আপলোড ব্যর্থ: ${uploadError.message}` },
+          { status: 500 }
+        );
+      }
+    }
+
+    const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(publicFilePath);
 
     return NextResponse.json({
       success: true,
       url: urlData.publicUrl,
-      fileName,
-      filePath,
+      optimized,
+      originalStored: !(type === 'book' && bucket === 'book-covers'),
+      fileName: publicFileName,
+      filePath: publicFilePath,
       bucket,
     });
   } catch (err: any) {

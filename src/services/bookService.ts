@@ -558,6 +558,43 @@ export const bookService = {
   ): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
+
+    // New book covers are converted to WebP before upload. Only WebP is stored.
+    if (options?.type === 'book' && bucket === 'book-covers') {
+      try {
+        if (typeof createImageBitmap !== 'function') {
+          throw new Error('এই ব্রাউজারে WebP image conversion সমর্থিত নয়।');
+        }
+        const bitmap = await createImageBitmap(file);
+        try {
+          const maxWidth = 960;
+          const maxHeight = 1280;
+          const scale = Math.min(1, maxWidth / bitmap.width, maxHeight / bitmap.height);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('ছবি অপটিমাইজ করার জন্য Canvas তৈরি করা যায়নি।');
+          context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          const webpBlob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob(resolve, 'image/webp', 0.82)
+          );
+          if (!webpBlob || webpBlob.type !== 'image/webp') {
+            throw new Error('এই ছবিটি WebP ফরম্যাটে রূপান্তর করা যায়নি।');
+          }
+          const baseName = file.name.replace(/\.[^.]+$/, '') || 'book-cover';
+          formData.append('optimizedFile', new File([webpBlob], `${baseName}.webp`, {
+            type: 'image/webp',
+            lastModified: Date.now(),
+          }));
+        } finally {
+          bitmap.close();
+        }
+      } catch (optimizationError: any) {
+        throw new Error(optimizationError?.message || 'বইয়ের কভার WebP-তে অপটিমাইজ করা যায়নি।');
+      }
+    }
+
     formData.append('bucket', bucket);
     if (options?.folder) formData.append('folder', options.folder);
     if (options?.recordId) formData.append('recordId', options.recordId);
